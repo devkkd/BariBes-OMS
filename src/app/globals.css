@@ -24,3 +24,54 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Custom Scrollbar Styles */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Hide default date input placeholder text (dd-mm-yyyy) */
+input[type="date"].date-input::-webkit-datetime-edit-text,
+input[type="date"].date-input::-webkit-datetime-edit-month-field,
+input[type="date"].date-input::-webkit-datetime-edit-day-field,
+input[type="date"].date-input::-webkit-datetime-edit-year-field {
+  color: transparent;
+}
+
+input[type="date"].date-input:focus::-webkit-datetime-edit-text,
+input[type="date"].date-input:focus::-webkit-datetime-edit-month-field,
+input[type="date"].date-input:focus::-webkit-datetime-edit-day-field,
+input[type="date"].date-input:focus::-webkit-datetime-edit-year-field {
+  color: #111827;
+}
+
+/* Show date value when selected */
+input[type="date"].date-input:not(:placeholder-shown)::-webkit-datetime-edit-text,
+input[type="date"].date-input:not(:placeholder-shown)::-webkit-datetime-edit-month-field,
+input[type="date"].date-input:not(:placeholder-shown)::-webkit-datetime-edit-day-field,
+input[type="date"].date-input:not(:placeholder-shown)::-webkit-datetime-edit-year-field {
+  color: #111827;
+}
+
+/* For Firefox */
+input[type="date"].date-input:invalid {
+  color: transparent;
+}
+
+input[type="date"].date-input:valid {
+  color: #111827;
+}
