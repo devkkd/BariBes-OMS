@@ -120,7 +120,7 @@ export default function Sidebar({ user }) {
           <div className="flex items-center justify-center">
             <div className="relative w-40 h-14 p-8">
               <Image
-                src="/BB-logo.png"
+                src="/bb-logo.png"
                 alt="Logo"
                 fill
                 className="object-cover"

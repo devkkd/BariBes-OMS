@@ -9,8 +9,8 @@ export async function middleware(request) {
   const token = request.cookies.get('auth-token');
   const { pathname } = request.nextUrl;
 
-  // Public routes
-  if (pathname === '/login') {
+  // Public routes - Home page (/) and /login
+  if (pathname === '/' || pathname === '/login') {
     if (token) {
       try {
         await jwtVerify(token.value, JWT_SECRET);
@@ -25,7 +25,7 @@ export async function middleware(request) {
   // Protected routes
   if (pathname.startsWith('/dashboard')) {
     if (!token) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      return NextResponse.redirect(new URL('/', request.url));
     }
 
     try {
@@ -38,7 +38,7 @@ export async function middleware(request) {
 
       return NextResponse.next();
     } catch (error) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      return NextResponse.redirect(new URL('/', request.url));
     }
   }
 
@@ -46,5 +46,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/login']
+  matcher: ['/dashboard/:path*', '/login', '/']
 };

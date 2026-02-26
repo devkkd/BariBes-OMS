@@ -13,10 +13,9 @@ export default function Header({ user }) {
     setLoading(true);
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      router.push('/login');
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout failed:', error);
-    } finally {
       setLoading(false);
     }
   };
