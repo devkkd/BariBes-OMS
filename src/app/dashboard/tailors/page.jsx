@@ -186,18 +186,21 @@ export default function TailorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Tailors Management</h2>
-          <p className="text-gray-600">Manage your tailors</p>
+      {/* Header Section - Mobile Responsive */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Tailors Management</h2>
+          <p className="text-sm sm:text-base text-gray-600">Manage your tailors</p>
         </div>
-        <button 
-          onClick={openAddModal}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#975a20] to-[#7d4a1a] text-white rounded-xl font-medium shadow-lg hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          Add Tailor
-        </button>
+        <div className="flex-shrink-0">
+          <button 
+            onClick={openAddModal}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-[#975a20] to-[#7d4a1a] text-white rounded-lg font-medium shadow-lg hover:opacity-90 transition-opacity text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Tailor</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

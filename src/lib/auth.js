@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import mongoose from 'mongoose';
 import connectDB from './mongodb';
 import User from '@/models/User';
 import ActivityLog from '@/models/ActivityLog';
@@ -73,6 +74,12 @@ export async function getCurrentUser() {
 export async function logActivity(userId, action, details = {}) {
   try {
     await connectDB();
+    
+    // Skip logging if userId is invalid (for failed login attempts)
+    if (!userId || userId === 'unknown' || !mongoose.Types.ObjectId.isValid(userId)) {
+      console.log(`[${new Date().toISOString()}] Anonymous: ${action}`);
+      return;
+    }
     
     await ActivityLog.create({
       userId,
