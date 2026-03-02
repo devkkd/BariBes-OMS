@@ -36,6 +36,7 @@ export async function GET(request, { params }) {
         orderDate: order.orderDate,
         customerName: order.customerName,
         customerPhone: order.customerPhone,
+        salesmanName: order.salesmanName,
         billingPhoto: order.billingPhoto,
         lehengaPhotos: order.lehengaPhotos,
         totalAmount: order.totalAmount,
@@ -68,6 +69,52 @@ export async function PUT(request, { params }) {
     }
 
     const data = await request.json();
+    
+    // Validate split payments if method is 'Other'
+    if (data.firstAdvance?.method === 'Other') {
+      const subPayments = data.firstAdvance.subPayments || [];
+      
+      // Check if subPayments exist and are valid
+      if (subPayments.length === 0) {
+        return NextResponse.json(
+          { error: 'Split payments are required when payment method is "Other"' },
+          { status: 400 }
+        );
+      }
+
+      // Validate each sub-payment
+      for (const subPayment of subPayments) {
+        if (!subPayment.paymentMethod || !subPayment.paymentMethod.trim()) {
+          return NextResponse.json(
+            { error: 'All payment methods are required' },
+            { status: 400 }
+          );
+        }
+  
+        if (!subPayment.amount || subPayment.amount <= 0) {
+          return NextResponse.json(
+            { error: 'All payment amounts must be greater than 0' },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Validate that sub-payments sum equals firstAdvance amount
+      const subPaymentsTotal = subPayments.reduce((sum, sp) => sum + Number(sp.amount), 0);
+      const firstAdvanceAmount = Number(data.firstAdvance.amount);
+      
+      if (Math.abs(subPaymentsTotal - firstAdvanceAmount) > 0.01) { // Allow small floating point differences
+        return NextResponse.json(
+          { 
+            error: `Split payments total (₹${subPaymentsTotal}) must equal first advance amount (₹${firstAdvanceAmount})`,
+            subPaymentsTotal,
+            firstAdvanceAmount
+          },
+          { status: 400 }
+        );
+      }
+    }
+    
     await connectDB();
     
     const { id } = await params;
@@ -96,6 +143,7 @@ export async function PUT(request, { params }) {
         orderDate: order.orderDate,
         customerName: order.customerName,
         customerPhone: order.customerPhone,
+        salesmanName: order.salesmanName,
         totalAmount: order.totalAmount,
         firstAdvance: order.firstAdvance,
         secondAdvance: order.secondAdvance,

@@ -14,6 +14,28 @@ const productionSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  
+  // Karigar Section
+  karigarId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Karigar',
+  },
+  karigarName: {
+    type: String,
+  },
+  karigarAssignedDate: {
+    type: Date,
+  },
+  karigarStatus: {
+    type: String,
+    enum: ['In Progress', 'Completed'],
+    default: 'In Progress',
+  },
+  karigarNotes: {
+    type: String,
+  },
+  
+  // Tailor Section
   tailorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tailor',
@@ -24,14 +46,23 @@ const productionSchema = new mongoose.Schema({
   tailoringDate: {
     type: Date,
   },
+  tailorStatus: {
+    type: String,
+    enum: ['In Progress', 'Completed'],
+    default: 'In Progress',
+  },
+  tailorNotes: {
+    type: String,
+  },
+  
+  // Overall status
   isReady: {
     type: Boolean,
     default: false,
   },
   location: {
     type: String,
-    enum: ['godown', 'shop'],
-    required: true,
+    enum: ['godown', 'shop', 'showroom'],
   },
   boxId: {
     type: mongoose.Schema.Types.ObjectId,

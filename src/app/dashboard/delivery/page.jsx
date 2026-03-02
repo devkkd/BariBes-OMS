@@ -442,7 +442,7 @@ export default function DeliveryPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search Order ID or Customer..."
+              placeholder="Search Billing Number or Customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
@@ -552,7 +552,7 @@ export default function DeliveryPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                       <div className="flex-1 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">Order ID</p>
+                          <p className="text-xs text-gray-500 mb-1">Billing Number</p>
                           <p className="text-sm font-semibold text-gray-900 truncate">{order.displayId}</p>
                         </div>
                         <div>
@@ -596,8 +596,7 @@ export default function DeliveryPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3">
                       <div className="flex-1 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">Order ID</p>
-                          <p className="text-xs text-gray-500 mb-1">Order ID</p>
+                          <p className="text-xs text-gray-500 mb-1">Billing Number</p>
                           <p className="text-sm font-semibold text-gray-900 truncate">{order.displayId}</p>
                         </div>
                         <div>

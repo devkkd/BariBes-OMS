@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Production from '@/models/Production';
 import Tailor from '@/models/Tailor';
+import Karigar from '@/models/Karigar';
 import Box from '@/models/Box';
 import Store from '@/models/Store';
 
@@ -12,6 +13,7 @@ export async function GET(request, { params }) {
     const { id } = await params;
     const production = await Production.findById(id)
       .populate('tailorId', 'name')
+      .populate('karigarId', 'name')
       .populate('boxId', 'name')
       .populate('storeId', 'name');
     
@@ -38,8 +40,40 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const body = await request.json();
     
+    // Get existing production to check current state
+    const existingProduction = await Production.findById(id);
+    if (!existingProduction) {
+      return NextResponse.json(
+        { success: false, error: 'Production record not found' },
+        { status: 404 }
+      );
+    }
+    
+    // VALIDATION: Check if trying to assign tailor when karigar is not completed
+    if (body.tailorId && existingProduction.karigarId && existingProduction.karigarStatus !== 'Completed') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Cannot assign to tailor. Karigar work is still in progress. Please complete karigar work first.' 
+        },
+        { status: 400 }
+      );
+    }
+    
+    // VALIDATION: Check if trying to change tailor status when karigar is not completed
+    if (body.tailorStatus && existingProduction.karigarId && existingProduction.karigarStatus !== 'Completed') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Cannot update tailor status. Karigar work must be completed first.' 
+        },
+        { status: 400 }
+      );
+    }
+    
     // Remove empty string values for ObjectId fields
     if (body.tailorId === '') body.tailorId = null;
+    if (body.karigarId === '') body.karigarId = null;
     if (body.boxId === '') body.boxId = null;
     if (body.storeId === '') body.storeId = null;
     
@@ -53,15 +87,23 @@ export async function PUT(request, { params }) {
     if (body.tailorId) {
       const tailor = await Tailor.findById(body.tailorId);
       body.tailorName = tailor?.name;
-    } else {
+    } else if (body.tailorId === null) {
       body.tailorName = null;
+    }
+    
+    // Get karigar name if karigarId changed
+    if (body.karigarId) {
+      const karigar = await Karigar.findById(body.karigarId);
+      body.karigarName = karigar?.name;
+    } else if (body.karigarId === null) {
+      body.karigarName = null;
     }
     
     // Get box name if boxId changed
     if (body.boxId) {
       const box = await Box.findById(body.boxId);
       body.boxName = box?.name;
-    } else {
+    } else if (body.boxId === null) {
       body.boxName = null;
     }
     
@@ -69,7 +111,7 @@ export async function PUT(request, { params }) {
     if (body.storeId) {
       const store = await Store.findById(body.storeId);
       body.storeName = store?.name;
-    } else {
+    } else if (body.storeId === null) {
       body.storeName = null;
     }
     
@@ -86,8 +128,8 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Update order status based on production status
-    if (body.status && production.orderNumber) {
+    // Update order status when storage is assigned or when production status changes
+    if (production.orderNumber) {
       const Order = (await import('@/models/Order')).default;
       
       // Parse order number to handle sub-orders
@@ -102,11 +144,19 @@ export async function PUT(request, { params }) {
         query.subOrderNumber = null;
       }
       
-      // Set order status based on production status
+      // Determine order status based on production state
       let orderStatus = 'Pending';
-      if (body.status === 'Ready') {
+      
+      // If storage location is assigned (tailor completed + storage assigned), mark as Ready
+      if (body.location || production.location) {
         orderStatus = 'Ready';
-      } else if (body.status === 'Not Ready') {
+      }
+      // If tailor status is completed but no storage yet
+      else if (production.tailorStatus === 'Completed' || body.tailorStatus === 'Completed') {
+        orderStatus = 'Ready';
+      }
+      // If in production
+      else if (production.karigarStatus === 'In Progress' || production.tailorStatus === 'In Progress') {
         orderStatus = 'In Production';
       }
       

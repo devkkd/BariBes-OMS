@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const TailorSchema = new mongoose.Schema(
+const KarigarSchema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -26,4 +26,4 @@ const TailorSchema = new mongoose.Schema(
   }
 );
 
-export default mongoose.models.Tailor || mongoose.model('Tailor', TailorSchema);
+export default mongoose.models.Karigar || mongoose.model('Karigar', KarigarSchema);

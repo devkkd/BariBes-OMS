@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Production from '@/models/Production';
 import Tailor from '@/models/Tailor';
+import Karigar from '@/models/Karigar';
 import Box from '@/models/Box';
 import Store from '@/models/Store';
 
@@ -13,6 +14,9 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const tailorId = searchParams.get('tailorId');
+    const karigarId = searchParams.get('karigarId');
+    const tailorStatus = searchParams.get('tailorStatus');
+    const karigarStatus = searchParams.get('karigarStatus');
     const location = searchParams.get('location');
     const boxId = searchParams.get('boxId');
     const startDate = searchParams.get('startDate');
@@ -29,8 +33,29 @@ export async function GET(request) {
       query.tailorId = tailorId;
     }
     
+    if (karigarId && karigarId !== 'all') {
+      query.karigarId = karigarId;
+    }
+    
+    if (tailorStatus) {
+      query.tailorStatus = tailorStatus;
+    }
+    
+    if (karigarStatus) {
+      query.karigarStatus = karigarStatus;
+    }
+    
     if (location && location !== 'all') {
-      query.location = location;
+      if (location === '') {
+        // Filter for items without location
+        query.$or = [
+          { location: { $exists: false } },
+          { location: null },
+          { location: '' }
+        ];
+      } else {
+        query.location = location;
+      }
     }
     
     if (boxId && boxId !== 'all') {
@@ -53,6 +78,7 @@ export async function GET(request) {
     
     const productions = await Production.find(query)
       .populate('tailorId', 'name')
+      .populate('karigarId', 'name')
       .populate('boxId', 'name')
       .populate('storeId', 'name')
       .sort({ createdAt: -1 });
@@ -75,14 +101,40 @@ export async function POST(request) {
     
     // Remove empty string values for ObjectId fields
     if (body.tailorId === '') delete body.tailorId;
+    if (body.karigarId === '') delete body.karigarId;
     if (body.boxId === '') delete body.boxId;
     if (body.storeId === '') delete body.storeId;
+    
+    // VALIDATION: Check if trying to assign tailor when karigar is not completed
+    if (body.tailorId && body.orderIdManual) {
+      // Check if this order already has a karigar assignment
+      const existingProduction = await Production.findOne({ 
+        orderNumber: body.orderIdManual 
+      });
+      
+      if (existingProduction && existingProduction.karigarId && existingProduction.karigarStatus !== 'Completed') {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Cannot assign to tailor. Karigar work is still in progress. Please complete karigar work first.' 
+          },
+          { status: 400 }
+        );
+      }
+    }
     
     // Get tailor name if tailorId provided
     let tailorName = null;
     if (body.tailorId) {
       const tailor = await Tailor.findById(body.tailorId);
       tailorName = tailor?.name;
+    }
+    
+    // Get karigar name if karigarId provided
+    let karigarName = null;
+    if (body.karigarId) {
+      const karigar = await Karigar.findById(body.karigarId);
+      karigarName = karigar?.name;
     }
     
     // Get box name if boxId provided
@@ -102,9 +154,21 @@ export async function POST(request) {
     const productionData = {
       orderNumber: body.orderIdManual,
       customerName: body.customerName,
+      
+      // Karigar fields
+      karigarId: body.karigarId,
+      karigarName,
+      karigarAssignedDate: body.karigarAssignedDate,
+      karigarStatus: body.karigarStatus || 'Not Assigned',
+      karigarNotes: body.karigarNotes,
+      
+      // Tailor fields
       tailorId: body.tailorId,
       tailorName,
       tailoringDate: body.tailoringDate,
+      tailorStatus: body.tailorStatus || 'Not Assigned',
+      tailorNotes: body.tailorNotes,
+      
       isReady: body.isReady,
       location: body.location,
       boxId: body.boxId,
@@ -117,7 +181,7 @@ export async function POST(request) {
     
     const production = await Production.create(productionData);
 
-    // Update order status based on production status
+    // Update order status when production is created
     if (body.orderIdManual) {
       const Order = (await import('@/models/Order')).default;
       
@@ -133,17 +197,10 @@ export async function POST(request) {
         query.subOrderNumber = null;
       }
       
-      // Set order status based on production status
-      let orderStatus = 'Pending';
-      if (body.status === 'Ready') {
-        orderStatus = 'Ready';
-      } else if (body.status === 'Not Ready') {
-        orderStatus = 'In Production';
-      }
-      
+      // Set order status to "In Production" when production is created
       await Order.findOneAndUpdate(
         query,
-        { status: orderStatus },
+        { status: 'In Production' },
         { runValidators: true }
       );
     }

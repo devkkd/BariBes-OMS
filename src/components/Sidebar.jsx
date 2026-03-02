@@ -42,10 +42,22 @@ export default function Sidebar({ user }) {
       roles: ['admin', 'staff'] 
     },
     { 
+      name: 'Storage', 
+      path: '/dashboard/storage', 
+      icon: Box, 
+      roles: ['admin', 'staff'] 
+    },
+    { 
       name: 'Delivery', 
       path: '/dashboard/delivery', 
       icon: Truck, 
       roles: ['admin', 'staff'] 
+    },
+    { 
+      name: 'Karigars', 
+      path: '/dashboard/karigars', 
+      icon: Users, 
+      roles: ['admin'] 
     },
     { 
       name: 'Tailors', 

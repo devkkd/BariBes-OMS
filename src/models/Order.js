@@ -36,14 +36,33 @@ const OrderSchema = new mongoose.Schema(
       },
       method: {
         type: String,
-        enum: ['SHUF', 'VHUF', 'KHUF', 'RD', 'Other'],
+        enum: ['SHUF', 'VHUF', 'KHUF', 'RD', 'Cash', 'Other'],
         required: true,
       },
+      subPayments: [{
+        paymentMethod: {
+          type: String,
+          required: true,
+        },
+        name: {
+          type: String,
+        
+        },
+        amount: {
+          type: Number,
+          required: true,
+          min: 0,
+        },
+      }],
     },
     secondAdvance: {
       type: Number,
       default: 0,
       min: 0,
+    },
+    secondAdvanceDate: {
+      type: Date,
+      default: null,
     },
     remainingDue: {
       type: Number,
@@ -60,11 +79,15 @@ const OrderSchema = new mongoose.Schema(
     },
     customerName: {
       type: String,
-      required: true,
+      required: false,
     },
     customerPhone: {
       type: String,
-      required: true,
+      required: false,
+    },
+    salesmanName: {
+      type: String,
+      required: false,
     },
     
     // Delivery information subdocument

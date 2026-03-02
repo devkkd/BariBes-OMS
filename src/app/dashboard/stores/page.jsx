@@ -259,6 +259,7 @@ export default function StoresPage() {
               <option value="all">All Categories</option>
               <option value="godown">Godown</option>
               <option value="shop">Shop</option>
+              <option value="showroom">Showroom</option>
             </select>
             <select
               value={statusFilter}
@@ -392,6 +393,7 @@ export default function StoresPage() {
                 >
                   <option value="godown">Godown</option>
                   <option value="shop">Shop</option>
+                  <option value="showroom">Showroom</option>
                 </select>
               </div>
 

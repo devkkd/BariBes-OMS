@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Package, Plus, Search, Calendar, IndianRupee, Edit2, Trash2, X, Upload, Image as ImageIcon, Eye, Download } from 'lucide-react';
+import { Package, Plus, Search, Calendar, IndianRupee, Edit2, Trash2, X, Upload, Image as ImageIcon, Eye, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import ImageUpload from '@/components/ImageUpload';
 
 export default function OrdersPage() {
@@ -31,12 +31,14 @@ export default function OrdersPage() {
     orderId: '',
     customerName: '',
     customerPhone: '',
+    salesmanName: '',
     orderDate: new Date().toISOString().split('T')[0],
     billingPhoto: '',
     lehengaPhotos: [],
     totalAmount: '',
-    firstAdvance: { amount: '', method: 'SHUF' },
+    firstAdvance: { amount: '', method: '', subPayments: [] },
     secondAdvance: '',
+    secondAdvanceDate: '',
     deliveryDate: '',
     status: 'Pending',
   });
@@ -44,6 +46,19 @@ export default function OrdersPage() {
   const [isMultipleMode, setIsMultipleMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  
+  // Selection state for bulk delete
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  // Toast notification helper
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'success' });
+    }, 4000);
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -64,7 +79,7 @@ export default function OrdersPage() {
       );
     }
 
-    // Order ID filter
+    // Billing Number filter
     if (orderIdFilter) {
       filtered = filtered.filter(order => 
         order.orderId && order.orderId.toString().includes(orderIdFilter)
@@ -155,11 +170,12 @@ export default function OrdersPage() {
       orderId: '',
       customerName: '',
       customerPhone: '',
+      salesmanName: '',
       orderDate: new Date().toISOString().split('T')[0],
       billingPhoto: '',
       lehengaPhotos: [],
       totalAmount: '',
-      firstAdvance: { amount: '', method: 'SHUF' },
+      firstAdvance: { amount: '', method: 'SPM', subPayments: [] },
       secondAdvance: '',
       deliveryDate: '',
       status: 'Pending',
@@ -176,11 +192,16 @@ export default function OrdersPage() {
       orderId: order.orderId || '',
       customerName: order.customerName,
       customerPhone: order.customerPhone,
+      salesmanName: order.salesmanName || '',
       orderDate: new Date(order.orderDate).toISOString().split('T')[0],
       billingPhoto: order.billingPhoto,
       lehengaPhotos: order.lehengaPhotos || [],
       totalAmount: order.totalAmount,
-      firstAdvance: order.firstAdvance,
+      firstAdvance: {
+        amount: order.firstAdvance.amount,
+        method: order.firstAdvance.method,
+        subPayments: order.firstAdvance.subPayments || [],
+      },
       secondAdvance: order.secondAdvance,
       deliveryDate: new Date(order.deliveryDate).toISOString().split('T')[0],
       status: order.status,
@@ -215,7 +236,7 @@ export default function OrdersPage() {
       billingPhoto: '',
       lehengaPhotos: [],
       totalAmount: '',
-      firstAdvance: { amount: '', method: 'SHUF' },
+      firstAdvance: { amount: '', method: 'SPM', subPayments: [] },
       secondAdvance: '',
       deliveryDate: '',
       status: 'Pending',
@@ -239,6 +260,41 @@ export default function OrdersPage() {
     setError('');
 
     try {
+      // Validate split payments if method is 'Other'
+      if (formData.firstAdvance.method === 'Other') {
+        const subPayments = formData.firstAdvance.subPayments || [];
+        
+        if (subPayments.length === 0) {
+          setError('Please add at least one payment when using "Split Payment" method');
+          setSubmitting(false);
+          return;
+        }
+
+        // Validate each sub-payment has paymentMethod, name and amount
+        for (const subPayment of subPayments) {
+          if (!subPayment.paymentMethod || !subPayment.paymentMethod.trim()) {
+            setError('All payment methods are required');
+            setSubmitting(false);
+            return;
+          }
+          if (!subPayment.amount || Number(subPayment.amount) <= 0) {
+            setError('All payment amounts must be greater than 0');
+            setSubmitting(false);
+            return;
+          }
+        }
+
+        // Validate that sub-payments sum equals firstAdvance amount
+        const subPaymentsTotal = subPayments.reduce((sum, sp) => sum + Number(sp.amount), 0);
+        const firstAdvanceAmount = Number(formData.firstAdvance.amount);
+        
+        if (Math.abs(subPaymentsTotal - firstAdvanceAmount) > 0.01) {
+          setError(`Split payments total (₹${subPaymentsTotal.toLocaleString('en-IN')}) must equal first advance amount (₹${firstAdvanceAmount.toLocaleString('en-IN')})`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       if (editingOrder) {
         // Edit single order
         const url = `/api/orders/${editingOrder.id}`;
@@ -253,6 +309,7 @@ export default function OrdersPage() {
             firstAdvance: {
               amount: Number(formData.firstAdvance.amount),
               method: formData.firstAdvance.method,
+              subPayments: formData.firstAdvance.subPayments || [],
             },
             secondAdvance: Number(formData.secondAdvance || 0),
           }),
@@ -280,6 +337,7 @@ export default function OrdersPage() {
           firstAdvance: {
             amount: Number(order.firstAdvance.amount),
             method: order.firstAdvance.method,
+            subPayments: order.firstAdvance.subPayments || [],
           },
           secondAdvance: Number(order.secondAdvance || 0),
         }));
@@ -306,13 +364,88 @@ export default function OrdersPage() {
           closeModal();
         } else {
           const failedCount = results.filter(r => !r.success).length;
-          setError(`${failedCount} order(s) failed to create`);
+          const firstError = results.find(r => !r.success)?.error;
+          setError(firstError || `${failedCount} order(s) failed to create`);
         }
       }
     } catch (error) {
       setError('Failed to save order');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        await fetchOrders();
+        showToast(`Order status updated to ${newStatus}`, 'success');
+      } else {
+        showToast(data.error || 'Failed to update status', 'error');
+      }
+    } catch (error) {
+      showToast('Failed to update status', 'error');
+    }
+  };
+
+  // Selection handlers
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedOrders([]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedOrders.length === paginatedOrders.length) {
+      setSelectedOrders([]);
+    } else {
+      setSelectedOrders(paginatedOrders.map(order => order.id));
+    }
+  };
+
+  const toggleSelectOrder = (orderId) => {
+    if (selectedOrders.includes(orderId)) {
+      setSelectedOrders(selectedOrders.filter(id => id !== orderId));
+    } else {
+      setSelectedOrders([...selectedOrders, orderId]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedOrders.length === 0) {
+      showToast('Please select orders to delete', 'error');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedOrders.length} order(s)?`)) return;
+
+    try {
+      const results = await Promise.all(
+        selectedOrders.map(orderId =>
+          fetch(`/api/orders/${orderId}`, { method: 'DELETE' }).then(res => res.json())
+        )
+      );
+
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+
+      if (successCount > 0) {
+        await fetchOrders();
+        showToast(`${successCount} order(s) deleted successfully${failCount > 0 ? `, ${failCount} failed` : ''}`, 'success');
+      } else {
+        showToast('Failed to delete orders', 'error');
+      }
+
+      setSelectedOrders([]);
+      setIsSelectionMode(false);
+    } catch (error) {
+      showToast('Failed to delete orders', 'error');
     }
   };
 
@@ -343,8 +476,145 @@ export default function OrdersPage() {
     setShowViewModal(false);
   };
 
-  const downloadReceipt = (order) => {
+  const downloadReceipt = async (order) => {
     const displayOrderId = order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId;
+    
+    // Fetch production details for this order
+    let productionInfo = null;
+    try {
+      const res = await fetch(`/api/production?search=${displayOrderId}`);
+      const data = await res.json();
+      if (data.success && data.data.length > 0) {
+        productionInfo = data.data[0];
+      }
+    } catch (error) {
+      console.error('Error fetching production info:', error);
+    }
+    
+    // Build sub-payments HTML if exists
+    let subPaymentsHTML = '';
+    if (order.firstAdvance.method === 'Other' && order.firstAdvance.subPayments && order.firstAdvance.subPayments.length > 0) {
+      subPaymentsHTML = order.firstAdvance.subPayments.map(sp => `
+        <tr>
+          <td style="padding-left: 30px; color: #666;">↳ ${sp.paymentMethod} ${sp.name ? `(${sp.name})` : ''}:</td>
+          <td style="text-align: right; color: #059669;">₹${sp.amount.toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+    }
+    
+    // Build production section HTML
+    let productionHTML = '';
+    if (productionInfo) {
+      productionHTML = `
+        <div class="section">
+          <div class="section-title">Production Details</div>
+          <div class="order-info">
+            ${productionInfo.karigarId ? `
+            <div class="info-row">
+              <span class="label">Karigar:</span>
+              <span class="value">${productionInfo.karigarId.name || productionInfo.karigarName || '-'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Karigar Status:</span>
+              <span class="status-badge ${productionInfo.karigarStatus === 'Completed' ? 'status-ready' : 'status-production'}">${productionInfo.karigarStatus}</span>
+            </div>
+            ${productionInfo.karigarAssignedDate ? `
+            <div class="info-row">
+              <span class="label">Karigar Assigned Date:</span>
+              <span class="value">${new Date(productionInfo.karigarAssignedDate).toLocaleDateString('en-IN')}</span>
+            </div>
+            ` : ''}
+            ${productionInfo.karigarNotes ? `
+            <div class="info-row">
+              <span class="label">Karigar Notes:</span>
+              <span class="value">${productionInfo.karigarNotes}</span>
+            </div>
+            ` : ''}
+            ` : ''}
+            
+            ${productionInfo.tailorId ? `
+            <div class="info-row" style="margin-top: 15px;">
+              <span class="label">Tailor:</span>
+              <span class="value">${productionInfo.tailorId.name || productionInfo.tailorName || '-'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Tailor Status:</span>
+              <span class="status-badge ${productionInfo.tailorStatus === 'Completed' ? 'status-ready' : 'status-production'}">${productionInfo.tailorStatus}</span>
+            </div>
+            ${productionInfo.tailoringDate ? `
+            <div class="info-row">
+              <span class="label">Tailoring Date:</span>
+              <span class="value">${new Date(productionInfo.tailoringDate).toLocaleDateString('en-IN')}</span>
+            </div>
+            ` : ''}
+            ${productionInfo.tailorNotes ? `
+            <div class="info-row">
+              <span class="label">Tailor Notes:</span>
+              <span class="value">${productionInfo.tailorNotes}</span>
+            </div>
+            ` : ''}
+            ` : ''}
+            
+            ${productionInfo.location ? `
+            <div class="info-row" style="margin-top: 15px;">
+              <span class="label">Storage Location:</span>
+              <span class="value">${productionInfo.location === 'godown' ? 'Godown' : productionInfo.location === 'shop' ? 'Shop' : 'Showroom'}</span>
+            </div>
+            ${productionInfo.storeId ? `
+            <div class="info-row">
+              <span class="label">Store:</span>
+              <span class="value">${productionInfo.storeId.name || productionInfo.storeName || '-'}</span>
+            </div>
+            ` : ''}
+            ${productionInfo.boxId ? `
+            <div class="info-row">
+              <span class="label">Box:</span>
+              <span class="value">${productionInfo.boxId.name || productionInfo.boxName || '-'}</span>
+            </div>
+            ` : ''}
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Build delivery info HTML
+    let deliveryHTML = '';
+    if (order.deliveryInfo && order.deliveryInfo.deliveredDate) {
+      deliveryHTML = `
+        <div class="section">
+          <div class="section-title">Delivery Information</div>
+          <div class="order-info">
+            <div class="info-row">
+              <span class="label">Delivered Date:</span>
+              <span class="value">${new Date(order.deliveryInfo.deliveredDate).toLocaleDateString('en-IN')}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Delivered By:</span>
+              <span class="value">${order.deliveryInfo.deliveredBy}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Delivery Person:</span>
+              <span class="value">${order.deliveryInfo.deliveryPersonName}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Delivery Person Mobile:</span>
+              <span class="value">${order.deliveryInfo.deliveryPersonMobile}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Remaining Payment Collected:</span>
+              <span class="value">₹${order.deliveryInfo.remainingPaymentAmount.toLocaleString('en-IN')}</span>
+            </div>
+            ${order.deliveryInfo.deliveryNotes ? `
+            <div class="info-row">
+              <span class="label">Delivery Notes:</span>
+              <span class="value">${order.deliveryInfo.deliveryNotes}</span>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
     
     // Create receipt HTML
     const receiptHTML = `
@@ -391,6 +661,12 @@ export default function OrdersPage() {
               <span class="label">Phone Number:</span>
               <span class="value">${order.customerPhone}</span>
             </div>
+            ${order.salesmanName ? `
+            <div class="info-row">
+              <span class="label">Salesman Name:</span>
+              <span class="value">${order.salesmanName}</span>
+            </div>
+            ` : ''}
             <div class="info-row">
               <span class="label">Order Date:</span>
               <span class="value">${new Date(order.orderDate).toLocaleDateString('en-IN')}</span>
@@ -406,6 +682,8 @@ export default function OrdersPage() {
           </div>
         </div>
 
+        ${productionHTML}
+
         <div class="section">
           <div class="section-title">Payment Details</div>
           <table class="payment-table">
@@ -417,6 +695,7 @@ export default function OrdersPage() {
               <td class="label">First Advance (${order.firstAdvance.method}):</td>
               <td class="value" style="text-align: right; color: #059669;">₹${order.firstAdvance.amount.toLocaleString('en-IN')}</td>
             </tr>
+            ${subPaymentsHTML}
             <tr>
               <td class="label">Second Advance:</td>
               <td class="value" style="text-align: right; color: #059669;">₹${order.secondAdvance.toLocaleString('en-IN')}</td>
@@ -427,6 +706,8 @@ export default function OrdersPage() {
             </tr>
           </table>
         </div>
+
+        ${deliveryHTML}
 
         <div class="footer">
           <p>Thank you for your order!</p>
@@ -492,7 +773,27 @@ export default function OrdersPage() {
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Orders Management</h2>
           <p className="text-sm sm:text-base text-gray-600">Track and manage lehenga orders</p>
         </div>
-        <div className="flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isSelectionMode && selectedOrders.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg font-medium shadow-lg hover:bg-red-700 transition-colors text-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete ({selectedOrders.length})</span>
+            </button>
+          )}
+          <button
+            onClick={toggleSelectionMode}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg font-medium shadow-lg transition-colors text-sm ${
+              isSelectionMode
+                ? 'bg-gray-600 text-white hover:bg-gray-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            <CheckCircle className="w-4 h-4" />
+            <span>{isSelectionMode ? 'Cancel' : 'Select'}</span>
+          </button>
           <button 
             onClick={openAddModal}
             className="flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-[#975a20] to-[#7d4a1a] text-white rounded-lg font-medium shadow-lg hover:opacity-90 transition-opacity text-sm"
@@ -577,7 +878,7 @@ export default function OrdersPage() {
 
             <input
               type="text"
-              placeholder="Order ID"
+              placeholder="Billing Number"
               value={orderIdFilter}
               onChange={(e) => setOrderIdFilter(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
@@ -676,7 +977,17 @@ export default function OrdersPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Order ID</th>
+                {isSelectionMode && (
+                  <th className="px-6 py-4 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedOrders.length === paginatedOrders.length && paginatedOrders.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 text-[#975a20] border-gray-300 rounded focus:ring-[#975a20] cursor-pointer"
+                    />
+                  </th>
+                )}
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Billing Number</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Customer</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Order Date</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Delivery Date</th>
@@ -690,15 +1001,25 @@ export default function OrdersPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-gray-500">Loading orders...</td>
+                  <td colSpan={isSelectionMode ? "10" : "9"} className="px-6 py-8 text-center text-gray-500">Loading orders...</td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-gray-500">No orders found</td>
+                  <td colSpan={isSelectionMode ? "10" : "9"} className="px-6 py-8 text-center text-gray-500">No orders found</td>
                 </tr>
               ) : (
                 paginatedOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${selectedOrders.includes(order.id) ? 'bg-blue-50' : ''}`}>
+                    {isSelectionMode && (
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedOrders.includes(order.id)}
+                          onChange={() => toggleSelectOrder(order.id)}
+                          className="w-4 h-4 text-[#975a20] border-gray-300 rounded focus:ring-[#975a20] cursor-pointer"
+                        />
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-semibold text-gray-900">
                         {order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId}
@@ -726,9 +1047,16 @@ export default function OrdersPage() {
                       {formatCurrency(order.remainingDue)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold border ${getStatusColor(order.status)}`}>
-                        {order.status}
-                      </span>
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none cursor-pointer transition-colors ${getStatusColor(order.status)}`}
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="In Production">In Production</option>
+                        <option value="Ready">Ready</option>
+                        <option value="Delivered">Delivered</option>
+                      </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
@@ -849,41 +1177,56 @@ export default function OrdersPage() {
               {/* Customer Details Section */}
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Customer Details</h4>
-                <div className="grid grid-cols-3 gap-4">
+                
+                {/* Row 1: Billing Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Billing Number *</label>
+                  <input
+                    type="text"
+                    value={formData.orderId}
+                    onChange={(e) => setFormData({ ...formData, orderId: e.target.value })}
+                    placeholder="e.g., 1, 2, ORD-123"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                    required
+                    disabled={editingOrder}
+                  />
+                </div>
+
+                {/* Row 2: Customer Name & Phone (2 columns on desktop, 1 on mobile) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Order ID *</label>
-                    <input
-                      type="text"
-                      value={formData.orderId}
-                      onChange={(e) => setFormData({ ...formData, orderId: e.target.value })}
-                      placeholder="e.g., 1, 2, ORD-123"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                      required
-                      disabled={editingOrder}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
                     <input
                       type="text"
                       value={formData.customerName}
                       onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                      required
+                      placeholder="Enter customer name"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
                     <input
                       type="tel"
                       value={formData.customerPhone}
                       onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                      required
+                      placeholder="Enter phone number"
                     />
                   </div>
+                </div>
+
+                {/* Row 3: Salesman Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Salesman Name</label>
+                  <input
+                    type="text"
+                    value={formData.salesmanName}
+                    onChange={(e) => setFormData({ ...formData, salesmanName: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                    placeholder="Enter salesman name"
+                  />
                 </div>
               </div>
 
@@ -940,24 +1283,60 @@ export default function OrdersPage() {
               {/* Payment Details Section */}
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Payment Details</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Total Amount *</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
-                      <input
-                        type="number"
-                        value={formData.totalAmount}
-                        onChange={(e) => setFormData({ ...formData, totalAmount: e.target.value })}
-                        className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                        required
-                        min="0"
-                      />
-                    </div>
-                  </div>
+                
 
+                  {/* Payment Method */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method *</label>
+                  <select
+                    value={formData.firstAdvance.method}
+                    onChange={(e) => {
+                      const newMethod = e.target.value;
+                      setFormData({ 
+                        ...formData, 
+                        firstAdvance: { 
+                          ...formData.firstAdvance, 
+                          method: newMethod,
+                          amount: '',
+                          subPayments: []
+                        }
+                      });
+                    }}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                    required
+                  >
+                    <option value="SPM">Select Payment Method</option>
+                    <option value="SHUF">SHUF</option>
+                    <option value="VHUF">VHUF</option>
+                    <option value="KHUF">KHUF</option>
+                    <option value="RD">RD</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Other">Other (Split Payment)</option>
+                  </select>
+                </div>
+
+                {/* Total Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Total Amount *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                    <input
+                      type="number"
+                      value={formData.totalAmount}
+                      onChange={(e) => setFormData({ ...formData, totalAmount: e.target.value })}
+                      className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                      required
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+              
+
+                {/* 1st Advance - For Single Payment Methods */}
+                {formData.firstAdvance.method && formData.firstAdvance.method !== 'Other' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">First Advance *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">1st Advance *</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
                       <input
@@ -973,9 +1352,199 @@ export default function OrdersPage() {
                       />
                     </div>
                   </div>
+                )}
 
+
+                {/* Other Payment Method - With Dropdown for Payment Methods */}
+                {formData.firstAdvance.method === 'Other' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">1st Advance Amount *</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                        <input
+                          type="number"
+                          value={formData.firstAdvance.amount}
+                          onChange={(e) => setFormData({ 
+                            ...formData, 
+                            firstAdvance: { ...formData.firstAdvance, amount: e.target.value, subPayments: [] }
+                          })}
+                          className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                          required
+                          min="0"
+                          placeholder="Enter total 1st advance amount"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">💡 Enter the total amount first, then split it below</p>
+                    </div>
+
+                    {formData.firstAdvance.amount && Number(formData.firstAdvance.amount) > 0 && (
+                      <div className="space-y-3 text-black p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-semibold text-gray-900">
+                            Split ₹{Number(formData.firstAdvance.amount).toLocaleString('en-IN')} into parts
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const subPayments = formData.firstAdvance.subPayments || [];
+                              setFormData({
+                                ...formData,
+                                firstAdvance: {
+                                  ...formData.firstAdvance,
+                                  subPayments: [...subPayments, { paymentMethod: '', name: '', amount: '' }]
+                                }
+                              });
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-[#975a20] text-white text-xs rounded-lg hover:opacity-90 transition-opacity"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Add Payment
+                          </button>
+                        </div>
+
+                        {(formData.firstAdvance.subPayments || []).length > 0 && (
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {formData.firstAdvance.subPayments.map((subPayment, index) => (
+                              <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-white rounded-lg border border-gray-200">
+                                {/* Payment Method Dropdown */}
+                                <div>
+                                  <select
+                                    value={subPayment.paymentMethod || ''}
+                                    onChange={(e) => {
+                                      const newSubPayments = [...formData.firstAdvance.subPayments];
+                                      newSubPayments[index] = { ...newSubPayments[index], paymentMethod: e.target.value };
+                                      setFormData({
+                                        ...formData,
+                                        firstAdvance: { ...formData.firstAdvance, subPayments: newSubPayments }
+                                      });
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                                    required
+                                  >
+                                    <option value="">Payment Method</option>
+                                    <option value="Cash">Cash</option>
+                                    <option value="Online">Online</option>
+                                   
+                                  </select>
+                                </div>
+                                
+                                {/* Person Name */}
+                                <div>
+                                  <input
+                                    type="text"
+                                    placeholder="Person Name"
+                                    value={subPayment.name || ''}
+                                    onChange={(e) => {
+                                      const newSubPayments = [...formData.firstAdvance.subPayments];
+                                      newSubPayments[index] = { ...newSubPayments[index], name: e.target.value };
+                                      setFormData({
+                                        ...formData,
+                                        firstAdvance: { ...formData.firstAdvance, subPayments: newSubPayments }
+                                      });
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none"
+                                  />
+                                </div>
+                                
+                                {/* Amount */}
+                                <div className="flex gap-2">
+                                  <div className="relative flex-1">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                                    <input
+                                      type="number"
+                                      placeholder="Amount"
+                                      value={subPayment.amount || ''}
+                                      onChange={(e) => {
+                                        const newSubPayments = [...formData.firstAdvance.subPayments];
+                                        newSubPayments[index] = { ...newSubPayments[index], amount: e.target.value };
+                                        setFormData({
+                                          ...formData,
+                                          firstAdvance: { 
+                                            ...formData.firstAdvance, 
+                                            subPayments: newSubPayments
+                                          }
+                                        });
+                                      }}
+                                      className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none"
+                                      required
+                                      min="0"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newSubPayments = formData.firstAdvance.subPayments.filter((_, i) => i !== index);
+                                      setFormData({
+                                        ...formData,
+                                        firstAdvance: { 
+                                          ...formData.firstAdvance, 
+                                          subPayments: newSubPayments
+                                        }
+                                      });
+                                    }}
+                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {(formData.firstAdvance.subPayments || []).length > 0 && (() => {
+                          const subTotal = formData.firstAdvance.subPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                          const targetAmount = Number(formData.firstAdvance.amount);
+                          const isMatching = subTotal === targetAmount;
+                          const difference = targetAmount - subTotal;
+
+                          return (
+                            <div className={`p-3 rounded-lg border-2 ${isMatching ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-semibold text-gray-700">Sub-payments Total:</span>
+                                  <span className={`text-lg font-bold ${isMatching ? 'text-green-700' : 'text-red-700'}`}>
+                                    ₹{subTotal.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm font-semibold text-gray-700">Target Amount:</span>
+                                  <span className="text-lg font-bold text-gray-900">
+                                    ₹{targetAmount.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                                {!isMatching && (
+                                  <div className="pt-2 border-t border-red-300">
+                                    <p className="text-sm font-bold text-red-700 flex items-center gap-2">
+                                      <span>⚠️</span>
+                                      {difference > 0 
+                                        ? `Need ₹${difference.toLocaleString('en-IN')} more to match` 
+                                        : `Exceeded by ₹${Math.abs(difference).toLocaleString('en-IN')}`}
+                                    </p>
+                                  </div>
+                                )}
+                                {isMatching && (
+                                  <div className="pt-2 border-t border-green-300">
+                                    <p className="text-sm font-bold text-green-700 flex items-center gap-2">
+                                      <span>✓</span>
+                                      Amounts match perfectly!
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2nd Advance & Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Second Advance</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">2nd Advance (Optional)</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
                       <input
@@ -987,40 +1556,61 @@ export default function OrdersPage() {
                       />
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">2nd Advance Date (Optional)</label>
+                    <input
+                      type="date"
+                      value={formData.secondAdvanceDate}
+                      onChange={(e) => setFormData({ ...formData, secondAdvanceDate: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                    />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method *</label>
-                    <select
-                      value={formData.firstAdvance.method}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        firstAdvance: { ...formData.firstAdvance, method: e.target.value }
-                      })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                    >
-                      <option value="SHUF">SHUF</option>
-                      <option value="VHUF">VHUF</option>
-                      <option value="KHUF">KHUF</option>
-                      <option value="RD">RD</option>
-                      <option value="Other">Other</option>
-                    </select>
+                {/* Remaining Amount Calculation */}
+                {formData.totalAmount && formData.firstAdvance.amount && (
+                  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">Total Amount:</span>
+                        <span className="font-semibold text-gray-900">₹{Number(formData.totalAmount).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600">1st Advance:</span>
+                        <span className="font-semibold text-gray-900">₹{Number(formData.firstAdvance.amount).toLocaleString('en-IN')}</span>
+                      </div>
+                      {formData.secondAdvance && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">2nd Advance:</span>
+                          <span className="font-semibold text-gray-900">₹{Number(formData.secondAdvance).toLocaleString('en-IN')}</span>
+                        </div>
+                      )}
+                      <div className="pt-2 border-t border-green-300">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-bold text-gray-700">Remaining Due:</span>
+                          <span className="text-xl font-bold text-green-700">
+                            ₹{(Number(formData.totalAmount) - Number(formData.firstAdvance.amount) - (Number(formData.secondAdvance) || 0)).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Order Status *</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="In Production">In Production</option>
-                      <option value="Ready">Ready</option>
-                      <option value="Delivered">Delivered</option>
-                    </select>
-                  </div>
+                {/* Order Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Order Status *</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="In Production">In Production</option>
+                    <option value="Ready">Ready</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
                 </div>
               </div>
 
@@ -1053,15 +1643,7 @@ export default function OrdersPage() {
 
               {/* Action Buttons */}
               <div className="space-y-3 pt-4 border-t border-gray-200">
-                {!editingOrder && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                    <p className="text-xs text-blue-800">
-                      <strong>Tip:</strong> {isMultipleMode 
-                        ? `Creating ${multipleOrders.length + 1} orders with IDs: ${formData.orderId}-1, ${formData.orderId}-2, ${formData.orderId}-${multipleOrders.length + 1}` 
-                        : `Single order will be created with ID: ${formData.orderId}`}
-                    </p>
-                  </div>
-                )}
+              
                 
                 {!editingOrder && (
                   <button
@@ -1130,6 +1712,12 @@ export default function OrdersPage() {
                       <p className="text-xs text-gray-500 mb-1">Phone Number</p>
                       <p className="text-sm font-medium text-gray-900">{viewingOrder.customerPhone}</p>
                     </div>
+                    {viewingOrder.salesmanName && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Salesman Name</p>
+                        <p className="text-sm font-medium text-gray-900">{viewingOrder.salesmanName}</p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Order Date</p>
                       <p className="text-sm font-medium text-gray-900">{new Date(viewingOrder.orderDate).toLocaleDateString('en-IN')}</p>
@@ -1155,10 +1743,30 @@ export default function OrdersPage() {
                       <span className="text-xs md:text-sm text-gray-600">Total Amount</span>
                       <span className="text-xs md:text-sm font-semibold text-gray-900">{formatCurrency(viewingOrder.totalAmount)}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs md:text-sm text-gray-600">First Advance ({viewingOrder.firstAdvance.method})</span>
-                      <span className="text-xs md:text-sm font-semibold text-green-600">{formatCurrency(viewingOrder.firstAdvance.amount)}</span>
-                    </div>
+                    
+                    {/* Show split payment breakdown if method is Other */}
+                    {viewingOrder.firstAdvance.method === 'Other' && viewingOrder.firstAdvance.subPayments && viewingOrder.firstAdvance.subPayments.length > 0 ? (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs md:text-sm text-gray-600">First Advance ({viewingOrder.firstAdvance.method})</span>
+                          <span className="text-xs md:text-sm font-semibold text-green-600">{formatCurrency(viewingOrder.firstAdvance.amount)}</span>
+                        </div>
+                        <div className="ml-4 space-y-1 border-l-2 border-green-300 pl-3">
+                          {viewingOrder.firstAdvance.subPayments.map((subPayment, index) => (
+                            <div key={index} className="flex justify-between items-center">
+                              <span className="text-xs text-gray-500">↳ {subPayment.paymentMethod} ({subPayment.name})</span>
+                              <span className="text-xs font-medium text-green-600">{formatCurrency(subPayment.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs md:text-sm text-gray-600">First Advance ({viewingOrder.firstAdvance.method})</span>
+                        <span className="text-xs md:text-sm font-semibold text-green-600">{formatCurrency(viewingOrder.firstAdvance.amount)}</span>
+                      </div>
+                    )}
+                    
                     <div className="flex justify-between items-center">
                       <span className="text-xs md:text-sm text-gray-600">Second Advance</span>
                       <span className="text-xs md:text-sm font-semibold text-green-600">{formatCurrency(viewingOrder.secondAdvance)}</span>
@@ -1251,6 +1859,30 @@ export default function OrdersPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border-2 ${
+            toast.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            {toast.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            )}
+            <p className="font-medium text-sm">{toast.message}</p>
+            <button
+              onClick={() => setToast({ ...toast, show: false })}
+              className="ml-2 p-1 hover:bg-white/50 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

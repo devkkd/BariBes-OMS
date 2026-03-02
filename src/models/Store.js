@@ -8,7 +8,7 @@ const storeSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['godown', 'shop'],
+    enum: ['godown', 'shop', 'showroom'],
     default: 'godown',
   },
   status: {
