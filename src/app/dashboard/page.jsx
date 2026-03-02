@@ -67,11 +67,12 @@ export default function DashboardPage() {
         fetch('/api/users')
       ]);
 
-      const ordersData = await ordersRes.json();
-      const productionData = await productionRes.json();
-      const deliveryData = await deliveryRes.json();
-      const tailorsData = await tailorsRes.json();
-      const usersData = await usersRes.json();
+      // Parse JSON only if response is OK
+      const ordersData = ordersRes.ok ? await ordersRes.json() : { success: false };
+      const productionData = productionRes.ok ? await productionRes.json() : { success: false };
+      const deliveryData = deliveryRes.ok ? await deliveryRes.json() : { success: false };
+      const tailorsData = tailorsRes.ok ? await tailorsRes.json() : { success: false };
+      const usersData = usersRes.ok ? await usersRes.json() : { success: false };
 
       if (ordersData.success) {
         const orders = ordersData.orders || [];

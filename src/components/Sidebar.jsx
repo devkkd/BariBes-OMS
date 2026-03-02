@@ -129,16 +129,12 @@ export default function Sidebar({ user }) {
               <X className="w-5 h-5 text-gray-700" />
             </button>
           </div>
-          <div className="flex items-center justify-center">
-            <div className="relative w-40 h-14 p-8">
-              <Image
-                src="/bb-logo.png"
-                alt="Logo"
-                fill
-                className="object-cover"
-                priority
-              />
-            </div>
+          <div className="flex items-center justify-center px-4">
+            <img
+              src="/bb-logo.png"
+              alt="BariBes Logo"
+              className="h-14 w-auto object-contain"
+            />
           </div>
         </div>
 
