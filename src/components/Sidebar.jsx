@@ -129,12 +129,22 @@ export default function Sidebar({ user }) {
               <X className="w-5 h-5 text-gray-700" />
             </button>
           </div>
-          <div className="flex items-center justify-center px-4">
+          <div className="flex items-center justify-center py-4 px-4">
             <img
-              src="/bb-logo.png"
+              src="/logoImage.png"
               alt="BariBes Logo"
-              className="h-14 w-auto object-contain"
+              className="h-20 w-auto object-contain"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextElementSibling.style.display = 'block';
+              }}
             />
+            <div style={{ display: 'none' }} className="text-center">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-[#975a20] to-[#7d4a1a] bg-clip-text text-transparent">
+                BariBes
+              </h1>
+              <p className="text-xs text-gray-600 mt-1">Management System</p>
+            </div>
           </div>
         </div>
 
