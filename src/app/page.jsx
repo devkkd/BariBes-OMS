@@ -155,7 +155,7 @@ export default function Home() {
               {/* Golden Glow Effect */}
               <div className="absolute inset-0 bg-gradient-to-r from-amber-500/40 to-yellow-600/40 rounded-full blur-2xl"></div>
               <img 
-                src='/logo.png' 
+                src='/login-logo.png' 
                 alt="Company Logo"
                 className='relative w-72 h-auto mx-auto'
                 style={{

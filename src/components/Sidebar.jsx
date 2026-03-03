@@ -131,7 +131,7 @@ export default function Sidebar({ user }) {
           </div>
           <div className="flex items-center justify-center px-4">
             <img
-              src="/logoImage.png"
+              src="/logo.png"
               alt="BariBes Logo"
               className="h-14 w-auto object-contain"
             />
