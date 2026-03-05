@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Box, Plus, Search, Edit2, Trash2, X } from 'lucide-react';
+import MobileBackButton from '@/components/MobileBackButton';
 
 export default function BoxesPage() {
   const router = useRouter();
@@ -174,6 +175,8 @@ export default function BoxesPage() {
 
   return (
     <div className="space-y-6">
+      <MobileBackButton />
+      
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Boxes Management</h2>

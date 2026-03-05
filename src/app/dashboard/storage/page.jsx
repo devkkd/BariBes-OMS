@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Package, Search, Edit2, X, MapPin, Box as BoxIcon, Store as StoreIcon, CheckCircle, User, Download } from 'lucide-react';
+import MobileBackButton from '@/components/MobileBackButton';
 
 export default function StoragePage() {
   const router = useRouter();
@@ -209,6 +210,8 @@ export default function StoragePage() {
 
   return (
     <div className="space-y-6">
+      <MobileBackButton />
+      
       {/* Header Section */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">

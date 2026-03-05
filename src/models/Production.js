@@ -12,7 +12,7 @@ const productionSchema = new mongoose.Schema({
   },
   customerName: {
     type: String,
-    required: true,
+    required: false,
   },
   
   // Karigar Section

@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Package, Plus, Search, Edit2, Trash2, X, Calendar, User, MapPin, Box as BoxIcon, Store as StoreIcon, CheckCircle, XCircle, Users, Scissors, AlertCircle } from 'lucide-react';
+import MobileBackButton from '@/components/MobileBackButton';
 
 export default function ProductionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState(null);
   const [productions, setProductions] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -64,6 +66,84 @@ export default function ProductionPage() {
     fetchTailors();
     fetchKarigars();
   }, []);
+
+  // Handle URL parameters to auto-open modal
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    const tab = searchParams.get('tab');
+    
+    if (orderId && orders.length > 0) {
+      // Find the order
+      const order = orders.find(o => {
+        const displayId = o.subOrderNumber ? `${o.orderId}-${o.subOrderNumber}` : o.orderId;
+        return displayId === orderId;
+      });
+      
+      if (order) {
+        // Auto-open modal with this order
+        const displayOrderId = order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId;
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Check if production exists
+        fetch(`/api/production?search=${displayOrderId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.data.length > 0) {
+              const production = data.data[0];
+              
+              // Validation: If opening tailor tab, check if karigar is completed
+              if (tab === 'tailor' && production.karigarId && production.karigarStatus !== 'Completed') {
+                showToast('Cannot assign to tailor. Karigar work is still in progress.', 'error');
+                setActiveTab('karigar');
+                return;
+              }
+              
+              setFormData({
+                orderIdManual: displayOrderId,
+                customerName: order.customerName,
+                karigarId: production.karigarId?._id || '',
+                karigarAssignedDate: production.karigarAssignedDate ? new Date(production.karigarAssignedDate).toISOString().split('T')[0] : today,
+                karigarStatus: production.karigarStatus || 'In Progress',
+                karigarNotes: production.karigarNotes || '',
+                tailorId: production.tailorId?._id || '',
+                tailoringDate: production.tailoringDate ? new Date(production.tailoringDate).toISOString().split('T')[0] : today,
+                tailorStatus: production.tailorStatus || 'In Progress',
+                tailorNotes: production.tailorNotes || '',
+                status: production.status,
+                notes: production.notes || '',
+              });
+              setEditingProduction(production);
+            } else {
+              // New production
+              setFormData({
+                orderIdManual: displayOrderId,
+                customerName: order.customerName,
+                karigarId: '',
+                karigarAssignedDate: today,
+                karigarStatus: 'In Progress',
+                karigarNotes: '',
+                tailorId: '',
+                tailoringDate: today,
+                tailorStatus: 'In Progress',
+                tailorNotes: '',
+                status: 'Not Ready',
+                notes: '',
+              });
+              setEditingProduction(null);
+            }
+            
+            setActiveTab(tab || 'karigar');
+            setShowModal(true);
+            
+            // Clear URL parameters
+            router.replace('/dashboard/production', { scroll: false });
+          })
+          .catch(error => {
+            console.error('Error loading production:', error);
+          });
+      }
+    }
+  }, [searchParams, orders]);
 
   useEffect(() => {
     if (orderSearchQuery) {
@@ -361,15 +441,11 @@ export default function ProductionPage() {
   // Filter productions based on active tab
   const filteredProductions = productions.filter(prod => {
     if (activeTab === 'karigar') {
-      // Show only if karigar is assigned or karigar status is not "Not Assigned"
-      return prod.karigarId || (prod.karigarStatus && prod.karigarStatus !== 'Not Assigned');
+      // Karigar section: Show only if karigar is assigned
+      return prod.karigarId && prod.karigarId !== null;
     } else {
-      // Tailor section: Show only if:
-      // 1. Tailor is assigned, AND
-      // 2. Either no karigar assigned OR karigar is completed
-      const hasTailor = prod.tailorId || (prod.tailorStatus && prod.tailorStatus !== 'Not Assigned');
-      const karigarCompleted = !prod.karigarId || prod.karigarStatus === 'Completed';
-      return hasTailor && karigarCompleted;
+      // Tailor section: Show only if tailor is assigned
+      return prod.tailorId && prod.tailorId !== null;
     }
   });
 
@@ -395,6 +471,8 @@ export default function ProductionPage() {
 
   return (
     <div className="space-y-6">
+      <MobileBackButton />
+      
       {/* Header Section */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">

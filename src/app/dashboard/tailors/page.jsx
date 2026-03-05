@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Scissors, Plus, Search, Edit2, Trash2, X, Phone } from 'lucide-react';
+import MobileBackButton from '@/components/MobileBackButton';
 
 export default function TailorsPage() {
   const router = useRouter();
@@ -186,6 +187,8 @@ export default function TailorsPage() {
 
   return (
     <div className="space-y-6">
+      <MobileBackButton />
+      
       {/* Header Section - Mobile Responsive */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">

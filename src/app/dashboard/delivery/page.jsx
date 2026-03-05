@@ -16,6 +16,7 @@ import {
   Loader2,
   FileText
 } from 'lucide-react';
+import MobileBackButton from '@/components/MobileBackButton';
 import VideoUpload from '@/components/VideoUpload';
 
 export default function DeliveryPage() {
@@ -389,6 +390,8 @@ export default function DeliveryPage() {
           )}
         </div>
       )}
+
+      <MobileBackButton />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

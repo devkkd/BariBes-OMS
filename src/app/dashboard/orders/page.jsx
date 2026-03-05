@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Package, Plus, Search, Calendar, IndianRupee, Edit2, Trash2, X, Upload, Image as ImageIcon, Eye, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { Package, Plus, Search, Calendar, IndianRupee, Edit2, Trash2, X, Upload, Image as ImageIcon, Eye, Download, CheckCircle, AlertCircle, Users, Scissors } from 'lucide-react';
 import ImageUpload from '@/components/ImageUpload';
+import MobileBackButton from '@/components/MobileBackButton';
+import { useRouter } from 'next/navigation';
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,6 +16,7 @@ export default function OrdersPage() {
   const [editingOrder, setEditingOrder] = useState(null);
   const [viewingOrder, setViewingOrder] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [staffUsers, setStaffUsers] = useState([]);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,11 +66,26 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+    fetchStaffUsers();
   }, []);
 
   useEffect(() => {
     applyFilters();
   }, [orders, searchQuery, orderIdFilter, statusFilter, startDate, endDate, minAmount, maxAmount]);
+
+  const fetchStaffUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (data.success) {
+        // Filter out admin users, keep only staff
+        const staff = data.users.filter(user => user.role !== 'admin');
+        setStaffUsers(staff);
+      }
+    } catch (error) {
+      console.error('Error fetching staff users:', error);
+    }
+  };
 
   const applyFilters = () => {
     let filtered = [...orders];
@@ -476,6 +495,13 @@ export default function OrdersPage() {
     setShowViewModal(false);
   };
 
+  const openProductionModal = async (order, tab = 'karigar') => {
+    const displayOrderId = order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId;
+    
+    // Redirect to production page with order ID and tab
+    router.push(`/dashboard/production?orderId=${encodeURIComponent(displayOrderId)}&tab=${tab}`);
+  };
+
   const downloadReceipt = async (order) => {
     const displayOrderId = order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId;
     
@@ -767,6 +793,8 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
+      <MobileBackButton />
+      
       {/* Header Section - Mobile Responsive */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -995,17 +1023,18 @@ export default function OrdersPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Paid</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Due</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Production</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={isSelectionMode ? "10" : "9"} className="px-6 py-8 text-center text-gray-500">Loading orders...</td>
+                  <td colSpan={isSelectionMode ? "11" : "10"} className="px-6 py-8 text-center text-gray-500">Loading orders...</td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={isSelectionMode ? "10" : "9"} className="px-6 py-8 text-center text-gray-500">No orders found</td>
+                  <td colSpan={isSelectionMode ? "11" : "10"} className="px-6 py-8 text-center text-gray-500">No orders found</td>
                 </tr>
               ) : (
                 paginatedOrders.map((order) => (
@@ -1057,6 +1086,26 @@ export default function OrdersPage() {
                         <option value="Ready">Ready</option>
                         <option value="Delivered">Delivered</option>
                       </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openProductionModal(order, 'karigar')}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                          title="Assign to Karigar"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Karigar</span>
+                        </button>
+                        <button
+                          onClick={() => openProductionModal(order, 'tailor')}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200"
+                          title="Assign to Tailor"
+                        >
+                          <Scissors className="w-3.5 h-3.5" />
+                          <span>Tailor</span>
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
@@ -1220,13 +1269,18 @@ export default function OrdersPage() {
                 {/* Row 3: Salesman Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Salesman Name</label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.salesmanName}
                     onChange={(e) => setFormData({ ...formData, salesmanName: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                    placeholder="Enter salesman name"
-                  />
+                  >
+                    <option value="">Select Salesman</option>
+                    {staffUsers.map((staff) => (
+                      <option key={staff.id} value={staff.name}>
+                        {staff.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -1305,7 +1359,7 @@ export default function OrdersPage() {
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
                     required
                   >
-                    <option value="SPM">Select Payment Method</option>
+                    <option value="">Select Payment Method</option>
                     <option value="SHUF">SHUF</option>
                     <option value="VHUF">VHUF</option>
                     <option value="KHUF">KHUF</option>

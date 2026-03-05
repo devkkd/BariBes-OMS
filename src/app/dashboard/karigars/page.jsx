@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, Plus, Search, Edit2, Trash2, X, Phone, FileText } from 'lucide-react';
+import MobileBackButton from '@/components/MobileBackButton';
 
 export default function KarigarsPage() {
   const router = useRouter();
@@ -161,6 +162,8 @@ export default function KarigarsPage() {
 
   return (
     <div className="space-y-6">
+      <MobileBackButton />
+      
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Karigar Management</h2>
