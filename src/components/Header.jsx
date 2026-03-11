@@ -34,9 +34,9 @@ export default function Header({ user }) {
           {/* Left Section - Logo (Mobile) + Welcome Message */}
           <div className="min-w-0 flex-1 flex items-center gap-3">
             {/* Logo - Only visible on mobile when sidebar is hidden */}
-            <div className="lg:hidden relative w-12 h-12 shrink-0">
+            <div className="lg:hidden ml-12 relative w-10 h-10 shrink-0">
               <Image
-                src="/BB-logo.png"
+                src="/favicon.png"
                 alt="Logo"
                 fill
                 className="object-contain"
@@ -44,7 +44,7 @@ export default function Header({ user }) {
               />
             </div>
             
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 ">
               <h1 className="text-base sm:text-lg lg:text-2xl font-bold text-gray-900 truncate">
                 Welcome back, {user?.name?.split(' ')[0] || 'User'}!
               </h1>

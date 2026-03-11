@@ -58,9 +58,9 @@ export async function POST(request) {
 
     const { name, email, password, role } = await request.json();
 
-    if (!name || !email || !password) {
+    if (!name || !password) {
       return NextResponse.json(
-        { error: 'Name, email, and password are required' },
+        { error: 'Name and password are required' },
         { status: 400 }
       );
     }
@@ -75,20 +75,22 @@ export async function POST(request) {
 
     await connectDB();
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'Staff member with this email already exists' },
-        { status: 400 }
-      );
+    // Check if user already exists (only if email is provided)
+    if (email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return NextResponse.json(
+          { error: 'Staff member with this email already exists' },
+          { status: 400 }
+        );
+      }
     }
 
     const hashedPassword = await hashPassword(password);
 
     const newUser = await User.create({
       name,
-      email,
+      email: email || undefined, // Only set if provided
       password: hashedPassword,
       role: 'staff', // Always create as staff
       status: 'active',

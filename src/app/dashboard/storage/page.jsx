@@ -433,7 +433,7 @@ export default function StoragePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Location *</label>
                 <select
                   value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value, storeId: '' })}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
                   required
                 >
@@ -442,54 +442,6 @@ export default function StoragePage() {
                   <option value="showroom">Showroom</option>
                 </select>
               </div>
-
-              {formData.location === 'godown' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Godown Store</label>
-                  <select
-                    value={formData.storeId}
-                    onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                  >
-                    <option value="">Select Godown Store</option>
-                    {stores.filter(s => s.category === 'godown').map(store => (
-                      <option key={store._id} value={store._id}>{store.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formData.location === 'shop' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Shop Store</label>
-                  <select
-                    value={formData.storeId}
-                    onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                  >
-                    <option value="">Select Shop Store</option>
-                    {stores.filter(s => s.category === 'shop').map(store => (
-                      <option key={store._id} value={store._id}>{store.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {formData.location === 'showroom' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Showroom</label>
-                  <select
-                    value={formData.storeId}
-                    onChange={(e) => setFormData({ ...formData, storeId: e.target.value })}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                  >
-                    <option value="">Select Showroom</option>
-                    {stores.filter(s => s.category === 'showroom').map(store => (
-                      <option key={store._id} value={store._id}>{store.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Box (Optional)</label>

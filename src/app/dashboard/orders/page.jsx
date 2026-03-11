@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Package, Plus, Search, Calendar, IndianRupee, Edit2, Trash2, X, Upload, Image as ImageIcon, Eye, Download, CheckCircle, AlertCircle, Users, Scissors } from 'lucide-react';
 import ImageUpload from '@/components/ImageUpload';
 import MobileBackButton from '@/components/MobileBackButton';
@@ -28,6 +28,8 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [deliveryStartDate, setDeliveryStartDate] = useState('');
+  const [deliveryEndDate, setDeliveryEndDate] = useState('');
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   
@@ -71,7 +73,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [orders, searchQuery, orderIdFilter, statusFilter, startDate, endDate, minAmount, maxAmount]);
+  }, [orders, searchQuery, orderIdFilter, statusFilter, startDate, endDate, deliveryStartDate, deliveryEndDate, minAmount, maxAmount]);
 
   const fetchStaffUsers = async () => {
     try {
@@ -110,7 +112,7 @@ export default function OrdersPage() {
       filtered = filtered.filter(order => order.status === statusFilter);
     }
 
-    // Date range filter - both dates required
+    // Order Date range filter
     if (startDate && endDate) {
       filtered = filtered.filter(order => {
         const orderDate = new Date(order.orderDate);
@@ -135,6 +137,31 @@ export default function OrdersPage() {
       });
     }
 
+    // Delivery Date range filter
+    if (deliveryStartDate && deliveryEndDate) {
+      filtered = filtered.filter(order => {
+        const deliveryDate = new Date(order.deliveryDate);
+        const start = new Date(deliveryStartDate);
+        const end = new Date(deliveryEndDate);
+        end.setHours(23, 59, 59, 999); // Include full end date
+        return deliveryDate >= start && deliveryDate <= end;
+      });
+    } else if (deliveryStartDate) {
+      // Only start date - show orders from start date onwards
+      filtered = filtered.filter(order => {
+        const deliveryDate = new Date(order.deliveryDate);
+        return deliveryDate >= new Date(deliveryStartDate);
+      });
+    } else if (deliveryEndDate) {
+      // Only end date - show orders until end date
+      filtered = filtered.filter(order => {
+        const deliveryDate = new Date(order.deliveryDate);
+        const end = new Date(deliveryEndDate);
+        end.setHours(23, 59, 59, 999);
+        return deliveryDate <= end;
+      });
+    }
+
     // Amount range filter
     if (minAmount) {
       filtered = filtered.filter(order => order.totalAmount >= parseFloat(minAmount));
@@ -151,7 +178,45 @@ export default function OrdersPage() {
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+  
+  // Sort orders by date (newest first) before pagination
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    return new Date(b.orderDate) - new Date(a.orderDate);
+  });
+  
+  const paginatedOrders = sortedOrders.slice(startIndex, endIndex);
+
+  // Group orders by date
+  const groupOrdersByDate = (orders) => {
+    const grouped = {};
+    orders.forEach(order => {
+      const dateKey = new Date(order.orderDate).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(order);
+    });
+    
+    // Sort dates in descending order (newest first)
+    const sortedGrouped = {};
+    Object.keys(grouped)
+      .sort((a, b) => {
+        const dateA = new Date(grouped[a][0].orderDate);
+        const dateB = new Date(grouped[b][0].orderDate);
+        return dateB - dateA;
+      })
+      .forEach(key => {
+        sortedGrouped[key] = grouped[key];
+      });
+    
+    return sortedGrouped;
+  };
+
+  const groupedOrders = groupOrdersByDate(paginatedOrders);
 
   const goToPage = (page) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -163,6 +228,8 @@ export default function OrdersPage() {
     setStatusFilter('all');
     setStartDate('');
     setEndDate('');
+    setDeliveryStartDate('');
+    setDeliveryEndDate('');
     setMinAmount('');
     setMaxAmount('');
   };
@@ -890,17 +957,18 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 border-b border-gray-200">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className="relative col-span-2">
+          {/* Row 1: Search, Billing, Status */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+            <div className="relative md:col-span-2">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search by name, phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all"
               />
             </div>
 
@@ -909,13 +977,13 @@ export default function OrdersPage() {
               placeholder="Billing Number"
               value={orderIdFilter}
               onChange={(e) => setOrderIdFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all"
             />
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 cursor-pointer transition-all"
             >
               <option value="all">All Status</option>
               <option value="Pending">Pending</option>
@@ -923,27 +991,23 @@ export default function OrdersPage() {
               <option value="Ready">Ready</option>
               <option value="Delivered">Delivered</option>
             </select>
+          </div>
 
+          {/* Row 2: Order Date Range */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <div className="relative">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900 ${!startDate ? 'opacity-0 absolute inset-0' : ''}`}
-                style={{
-                  colorScheme: 'light'
-                }}
+                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all ${!startDate ? 'opacity-0 absolute inset-0' : ''}`}
+                style={{ colorScheme: 'light' }}
               />
               {!startDate && (
-                <div className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-400 flex items-center justify-between cursor-pointer"
+                <div className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-500 flex items-center justify-between cursor-pointer hover:border-gray-400 transition-all"
                      onClick={(e) => e.currentTarget.previousElementSibling.showPicker()}>
                   <span>Order Date From</span>
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round"/>
-                    <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round"/>
-                    <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
+                  <Calendar className="w-4 h-4 text-gray-400" />
                 </div>
               )}
             </div>
@@ -953,50 +1017,84 @@ export default function OrdersPage() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900 ${!endDate ? 'opacity-0 absolute inset-0' : ''}`}
-                style={{
-                  colorScheme: 'light'
-                }}
+                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all ${!endDate ? 'opacity-0 absolute inset-0' : ''}`}
+                style={{ colorScheme: 'light' }}
               />
               {!endDate && (
-                <div className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-400 flex items-center justify-between cursor-pointer"
+                <div className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-500 flex items-center justify-between cursor-pointer hover:border-gray-400 transition-all"
                      onClick={(e) => e.currentTarget.previousElementSibling.showPicker()}>
                   <span>Order Date To</span>
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round"/>
-                    <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round"/>
-                    <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                </div>
+              )}
+            </div>
+                 <div className="relative">
+              <input
+                type="date"
+                value={deliveryStartDate}
+                onChange={(e) => setDeliveryStartDate(e.target.value)}
+                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all ${!deliveryStartDate ? 'opacity-0 absolute inset-0' : ''}`}
+                style={{ colorScheme: 'light' }}
+              />
+              {!deliveryStartDate && (
+                <div className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-500 flex items-center justify-between cursor-pointer hover:border-gray-400 transition-all"
+                     onClick={(e) => e.currentTarget.previousElementSibling.showPicker()}>
+                  <span>Delivery Date From</span>
+                  <Calendar className="w-4 h-4 text-gray-400" />
                 </div>
               )}
             </div>
 
+            <div className="relative">
+              <input
+                type="date"
+                value={deliveryEndDate}
+                onChange={(e) => setDeliveryEndDate(e.target.value)}
+                className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all ${!deliveryEndDate ? 'opacity-0 absolute inset-0' : ''}`}
+                style={{ colorScheme: 'light' }}
+              />
+              {!deliveryEndDate && (
+                <div className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-500 flex items-center justify-between cursor-pointer hover:border-gray-400 transition-all"
+                     onClick={(e) => e.currentTarget.previousElementSibling.showPicker()}>
+                  <span>Delivery Date To</span>
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                </div>
+              )}
+            </div>
+          </div>
+
+   
+
+          {/* Row 4: Amount Range + Actions */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <input
               type="number"
               value={minAmount}
               onChange={(e) => setMinAmount(e.target.value)}
-              placeholder="Min ₹"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+              placeholder="Min Amount ₹"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all"
             />
 
             <input
               type="number"
               value={maxAmount}
               onChange={(e) => setMaxAmount(e.target.value)}
-              placeholder="Max ₹"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+              placeholder="Max Amount ₹"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all"
             />
 
             <button
               onClick={clearFilters}
-              className="px-3 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all"
             >
-              Clear
+              <X className="w-4 h-4" />
+              Clear Filters
             </button>
 
-            <div className="flex items-center justify-end text-xs text-gray-500 md:col-span-2">
-              {filteredOrders.length} of {orders.length} orders
+            <div className="flex items-center justify-center px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              <span className="text-sm font-semibold text-gray-900">{filteredOrders.length}</span>
+              <span className="text-sm text-gray-400 mx-1">/</span>
+              <span className="text-sm text-gray-600">{orders.length}</span>
             </div>
           </div>
         </div>
@@ -1016,15 +1114,14 @@ export default function OrdersPage() {
                   </th>
                 )}
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Billing Number</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Customer</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Order Date</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Delivery Date</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Amount</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Paid</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Due</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Production</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Amount</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Paid</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Due</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -1037,87 +1134,86 @@ export default function OrdersPage() {
                   <td colSpan={isSelectionMode ? "11" : "10"} className="px-6 py-8 text-center text-gray-500">No orders found</td>
                 </tr>
               ) : (
-                paginatedOrders.map((order) => (
-                  <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${selectedOrders.includes(order.id) ? 'bg-blue-50' : ''}`}>
-                    {isSelectionMode && (
-                      <td className="px-6 py-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedOrders.includes(order.id)}
-                          onChange={() => toggleSelectOrder(order.id)}
-                          className="w-4 h-4 text-[#975a20] border-gray-300 rounded focus:ring-[#975a20] cursor-pointer"
-                        />
+                Object.entries(groupedOrders).map(([date, orders]) => (
+                  <React.Fragment key={`date-group-${date}`}>
+                    {/* Date Header Row */}
+                    <tr key={`date-${date}`} className="bg-gradient-to-r from-[#975a20]/10 to-[#7d4a1a]/10">
+                      <td colSpan={isSelectionMode ? "11" : "10"} className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-[#975a20]" />
+                          <span className="text-sm font-bold text-[#975a20]">{date}</span>
+                          <span className="text-xs text-gray-600">({orders.length} order{orders.length > 1 ? 's' : ''})</span>
+                        </div>
                       </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{order.customerName}</p>
-                        <p className="text-xs text-gray-500">{order.customerPhone}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(order.orderDate).toLocaleDateString('en-IN')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(order.deliveryDate).toLocaleDateString('en-IN')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                      {formatCurrency(order.totalAmount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                      {formatCurrency(order.firstAdvance.amount + order.secondAdvance)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
-                      {formatCurrency(order.remainingDue)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none cursor-pointer transition-colors ${getStatusColor(order.status)}`}
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="In Production">In Production</option>
-                        <option value="Ready">Ready</option>
-                        <option value="Delivered">Delivered</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openProductionModal(order, 'karigar')}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
-                          title="Assign to Karigar"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          <span>Karigar</span>
-                        </button>
-                        <button
-                          onClick={() => openProductionModal(order, 'tailor')}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200"
-                          title="Assign to Tailor"
-                        >
-                          <Scissors className="w-3.5 h-3.5" />
-                          <span>Tailor</span>
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openViewModal(order)}
-                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => downloadReceipt(order)}
+                    </tr>
+                    
+                    {/* Orders for this date */}
+                    {orders.map((order) => (
+                      <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${selectedOrders.includes(order.id) ? 'bg-blue-50' : ''}`}>
+                        {isSelectionMode && (
+                          <td className="px-6 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedOrders.includes(order.id)}
+                              onChange={() => toggleSelectOrder(order.id)}
+                              className="w-4 h-4 text-[#975a20] border-gray-300 rounded focus:ring-[#975a20] cursor-pointer"
+                            />
+                          </td>
+                        )}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-semibold text-gray-900">
+                            {order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {new Date(order.orderDate).toLocaleDateString('en-IN')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {new Date(order.deliveryDate).toLocaleDateString('en-IN')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            value={order.status}
+                            onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border outline-none cursor-pointer transition-colors ${getStatusColor(order.status)}`}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="In Production">In Production</option>
+                            <option value="Ready">Ready</option>
+                            <option value="Delivered">Delivered</option>
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openProductionModal(order, 'karigar')}
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                              title="Assign to Karigar"
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              <span>Karigar</span>
+                            </button>
+                            <button
+                              onClick={() => openProductionModal(order, 'tailor')}
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200"
+                              title="Assign to Tailor"
+                            >
+                              <Scissors className="w-3.5 h-3.5" />
+                              <span>Tailor</span>
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openViewModal(order)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => downloadReceipt(order)}
                           className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                           title="Download Receipt"
                         >
@@ -1139,7 +1235,18 @@ export default function OrdersPage() {
                         </button>
                       </div>
                     </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                          {formatCurrency(order.totalAmount)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                          {formatCurrency(order.firstAdvance.amount + order.secondAdvance)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                          {formatCurrency(order.remainingDue)}
+                        </td>
                   </tr>
+                ))}
+                  </React.Fragment>
                 ))
               )}
             </tbody>

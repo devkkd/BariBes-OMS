@@ -95,7 +95,7 @@ export default function Sidebar({ user }) {
       {!isMobileMenuOpen && (
         <button
           onClick={() => setIsMobileMenuOpen(true)}
-          className="lg:hidden fixed top-4 left-4 z-50 p-2.5 bg-white rounded-xl shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+          className="lg:hidden fixed top-2 left-4 z-50 p-2.5 bg-white rounded-xl  transition-colors"
           aria-label="Open menu"
         >
           <Menu className="w-6 h-6 text-gray-700" />
