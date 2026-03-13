@@ -35,8 +35,6 @@ export default function OrdersPage() {
   
   const [formData, setFormData] = useState({
     orderId: '',
-    customerName: '',
-    customerPhone: '',
     salesmanName: '',
     orderDate: new Date().toISOString().split('T')[0],
     billingPhoto: '',
@@ -92,11 +90,11 @@ export default function OrdersPage() {
   const applyFilters = () => {
     let filtered = [...orders];
 
-    // Search filter (name and phone only)
+    // Search filter (billing number and salesman name only)
     if (searchQuery) {
       filtered = filtered.filter(order => 
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerPhone.includes(searchQuery)
+        (order.orderId && order.orderId.toString().includes(searchQuery)) ||
+        (order.salesmanName && order.salesmanName.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
 
@@ -179,9 +177,32 @@ export default function OrdersPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   
-  // Sort orders by date (newest first) before pagination
+  // Sort orders by date (newest first) and then by billing number (descending within each date)
   const sortedOrders = [...filteredOrders].sort((a, b) => {
-    return new Date(b.orderDate) - new Date(a.orderDate);
+    // First sort by date (newest first)
+    const dateA = new Date(a.orderDate);
+    const dateB = new Date(b.orderDate);
+    
+    if (dateB.getTime() !== dateA.getTime()) {
+      return dateB - dateA; // Newest date first
+    }
+    
+    // Within same date, sort by billing number (descending - 349, 7349, 6353...)
+    const getNumericId = (orderId) => {
+      const match = orderId.toString().match(/\d+/);
+      return match ? parseInt(match[0]) : 0;
+    };
+    
+    const numA = getNumericId(a.orderId);
+    const numB = getNumericId(b.orderId);
+    
+    // Sort by numeric ID descending
+    if (numB !== numA) {
+      return numB - numA; // Descending order: 349, 7349, 6353...
+    }
+    
+    // If same orderId, sort by subOrderNumber descending
+    return (b.subOrderNumber || 0) - (a.subOrderNumber || 0);
   });
   
   const paginatedOrders = sortedOrders.slice(startIndex, endIndex);
@@ -254,8 +275,6 @@ export default function OrdersPage() {
     setEditingOrder(null);
     setFormData({
       orderId: '',
-      customerName: '',
-      customerPhone: '',
       salesmanName: '',
       orderDate: new Date().toISOString().split('T')[0],
       billingPhoto: '',
@@ -276,8 +295,6 @@ export default function OrdersPage() {
     setEditingOrder(order);
     setFormData({
       orderId: order.orderId || '',
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
       salesmanName: order.salesmanName || '',
       orderDate: new Date(order.orderDate).toISOString().split('T')[0],
       billingPhoto: order.billingPhoto,
@@ -306,7 +323,7 @@ export default function OrdersPage() {
 
   const addAnotherOrder = () => {
     // Validate current order data
-    if (!formData.orderId || !formData.customerName || !formData.customerPhone || 
+    if (!formData.orderId || 
         !formData.billingPhoto || !formData.totalAmount || !formData.firstAdvance.amount || 
         !formData.deliveryDate) {
       setError('Please fill all required fields before adding another order');
@@ -744,16 +761,8 @@ export default function OrdersPage() {
         </div>
 
         <div class="section">
-          <div class="section-title">Customer Information</div>
+          <div class="section-title">Order Information</div>
           <div class="order-info">
-            <div class="info-row">
-              <span class="label">Customer Name:</span>
-              <span class="value">${order.customerName}</span>
-            </div>
-            <div class="info-row">
-              <span class="label">Phone Number:</span>
-              <span class="value">${order.customerPhone}</span>
-            </div>
             ${order.salesmanName ? `
             <div class="info-row">
               <span class="label">Salesman Name:</span>
@@ -965,7 +974,7 @@ export default function OrdersPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name, phone..."
+                placeholder="Search by billing number, salesman..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] focus:border-[#975a20] outline-none text-gray-900 transition-all"
@@ -1332,7 +1341,7 @@ export default function OrdersPage() {
 
               {/* Customer Details Section */}
               <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Customer Details</h4>
+                <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Order Details</h4>
                 
                 {/* Row 1: Billing Number */}
                 <div>
@@ -1344,36 +1353,10 @@ export default function OrdersPage() {
                     placeholder="e.g., 1, 2, ORD-123"
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
                     required
-                    disabled={editingOrder}
                   />
                 </div>
 
-                {/* Row 2: Customer Name & Phone (2 columns on desktop, 1 on mobile) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
-                    <input
-                      type="text"
-                      value={formData.customerName}
-                      onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                      placeholder="Enter customer name"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                    <input
-                      type="tel"
-                      value={formData.customerPhone}
-                      onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 3: Salesman Name */}
+                {/* Row 2: Salesman Name */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Salesman Name</label>
                   <select
@@ -1861,18 +1844,10 @@ export default function OrdersPage() {
             {/* Scrollable Content */}
             <div className="overflow-y-auto flex-1 p-4 md:p-6">
               <div className="space-y-4 md:space-y-6">
-                {/* Customer Information */}
+                {/* Order Information */}
                 <div className="bg-gray-50 rounded-xl p-3 md:p-4">
-                  <h4 className="text-xs md:text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">Customer Information</h4>
+                  <h4 className="text-xs md:text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">Order Information</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Customer Name</p>
-                      <p className="text-sm font-medium text-gray-900">{viewingOrder.customerName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">Phone Number</p>
-                      <p className="text-sm font-medium text-gray-900">{viewingOrder.customerPhone}</p>
-                    </div>
                     {viewingOrder.salesmanName && (
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Salesman Name</p>

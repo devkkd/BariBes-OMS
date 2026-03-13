@@ -90,7 +90,7 @@ export async function POST(request) {
 
     const newUser = await User.create({
       name,
-      email: email || undefined, // Only set if provided
+      email: email || null, // null if not provided
       password: hashedPassword,
       role: 'staff', // Always create as staff
       status: 'active',

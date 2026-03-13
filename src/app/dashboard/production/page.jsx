@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Package, Plus, Search, Edit2, Trash2, X, Calendar, User, MapPin, Box as BoxIcon, Store as StoreIcon, CheckCircle, XCircle, Users, Scissors, AlertCircle } from 'lucide-react';
 import MobileBackButton from '@/components/MobileBackButton';
@@ -16,7 +16,7 @@ export default function ProductionPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingProduction, setEditingProduction] = useState(null);
-  const [activeTab, setActiveTab] = useState('karigar'); // 'karigar' or 'tailor'
+  const [activeTab, setActiveTab] = useState('tailor'); // 'karigar' or 'tailor' - default to tailor
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   
   // Pagination
@@ -30,7 +30,6 @@ export default function ProductionPage() {
   
   const [formData, setFormData] = useState({
     orderIdManual: '',
-    customerName: '',
     karigarId: '',
     karigarAssignedDate: '',
     karigarStatus: 'Not Assigned',
@@ -100,7 +99,6 @@ export default function ProductionPage() {
               
               setFormData({
                 orderIdManual: displayOrderId,
-                customerName: order.customerName,
                 karigarId: production.karigarId?._id || '',
                 karigarAssignedDate: production.karigarAssignedDate ? new Date(production.karigarAssignedDate).toISOString().split('T')[0] : today,
                 karigarStatus: production.karigarStatus || 'In Progress',
@@ -117,7 +115,6 @@ export default function ProductionPage() {
               // New production
               setFormData({
                 orderIdManual: displayOrderId,
-                customerName: order.customerName,
                 karigarId: '',
                 karigarAssignedDate: today,
                 karigarStatus: 'In Progress',
@@ -132,7 +129,7 @@ export default function ProductionPage() {
               setEditingProduction(null);
             }
             
-            setActiveTab(tab || 'karigar');
+            setActiveTab(tab || 'tailor');
             setShowModal(true);
             
             // Clear URL parameters
@@ -152,8 +149,7 @@ export default function ProductionPage() {
         const searchLower = orderSearchQuery.toLowerCase();
         return (
           displayId.toLowerCase().includes(searchLower) ||
-          order.customerName.toLowerCase().includes(searchLower) ||
-          order.customerPhone.includes(searchLower)
+          (order.salesmanName && order.salesmanName.toLowerCase().includes(searchLower))
         );
       });
       setFilteredOrders(filtered);
@@ -254,7 +250,6 @@ export default function ProductionPage() {
     const today = new Date().toISOString().split('T')[0];
     setFormData({
       orderIdManual: '',
-      customerName: '',
       karigarId: '',
       karigarAssignedDate: today,
       karigarStatus: 'In Progress',
@@ -274,7 +269,6 @@ export default function ProductionPage() {
     setEditingProduction(production);
     setFormData({
       orderIdManual: production.orderNumber || '',
-      customerName: production.customerName || '',
       karigarId: production.karigarId?._id || '',
       karigarAssignedDate: production.karigarAssignedDate ? new Date(production.karigarAssignedDate).toISOString().split('T')[0] : '',
       karigarStatus: production.karigarStatus || 'Not Assigned',
@@ -449,10 +443,52 @@ export default function ProductionPage() {
     }
   });
 
-  const totalPages = Math.ceil(filteredProductions.length / itemsPerPage);
+  // Sort productions by date (newest first) and then by billing number (descending within each date)
+  const sortedProductions = [...filteredProductions].sort((a, b) => {
+    // First sort by assigned date (newest first) - use tailoringDate or karigarAssignedDate
+    const dateA = new Date(a.tailoringDate || a.karigarAssignedDate || a.createdAt);
+    const dateB = new Date(b.tailoringDate || b.karigarAssignedDate || b.createdAt);
+    
+    if (dateB.getTime() !== dateA.getTime()) {
+      return dateB - dateA; // Newest date first
+    }
+    
+    // Within same date, sort by billing number (descending)
+    const getNumericId = (orderNumber) => {
+      const match = orderNumber.toString().match(/\d+/);
+      return match ? parseInt(match[0]) : 0;
+    };
+    
+    const numA = getNumericId(a.orderNumber);
+    const numB = getNumericId(b.orderNumber);
+    
+    return numB - numA; // Descending order
+  });
+
+  const totalPages = Math.ceil(sortedProductions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedProductions = filteredProductions.slice(startIndex, endIndex);
+  const paginatedProductions = sortedProductions.slice(startIndex, endIndex);
+
+  // Group productions by date
+  const groupProductionsByDate = (productions) => {
+    const grouped = {};
+    productions.forEach(production => {
+      const date = new Date(production.tailoringDate || production.karigarAssignedDate || production.createdAt);
+      const dateKey = date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(production);
+    });
+    return grouped;
+  };
+
+  const groupedProductions = groupProductionsByDate(paginatedProductions);
 
   const goToPage = (page) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -597,8 +633,8 @@ export default function ProductionPage() {
                     />
                   </th>
                 )}
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Order</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Customer</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Billing Number</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Salesman</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
                   {activeTab === 'karigar' ? 'Karigar' : 'Tailor'}
                 </th>
@@ -620,7 +656,21 @@ export default function ProductionPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedProductions.map((production) => (
+                Object.entries(groupedProductions).map(([date, productions]) => (
+                  <React.Fragment key={`date-group-${date}`}>
+                    {/* Date Header Row */}
+                    <tr key={`date-${date}`} className="bg-gradient-to-r from-[#975a20]/10 to-[#7d4a1a]/10">
+                      <td colSpan={isSelectionMode ? "8" : "7"} className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-[#975a20]" />
+                          <span className="text-sm font-bold text-[#975a20]">{date}</span>
+                          <span className="text-xs text-gray-600">({productions.length} production{productions.length > 1 ? 's' : ''})</span>
+                        </div>
+                      </td>
+                    </tr>
+                    
+                    {/* Productions for this date */}
+                    {productions.map((production) => (
                   <tr key={production._id} className={`hover:bg-gray-50 transition-colors ${selectedProductions.includes(production._id) ? 'bg-blue-50' : ''}`}>
                     {isSelectionMode && (
                       <td className="px-6 py-4">
@@ -636,7 +686,7 @@ export default function ProductionPage() {
                       <span className="text-sm font-medium text-gray-900">{production.orderNumber}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{production.customerName}</span>
+                      <span className="text-sm text-gray-600">{production.salesmanName || '-'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -732,6 +782,8 @@ export default function ProductionPage() {
                       </div>
                     </td>
                   </tr>
+                ))}
+                  </React.Fragment>
                 ))
               )}
             </tbody>
@@ -848,7 +900,7 @@ export default function ProductionPage() {
                           type="button"
                           onClick={() => {
                             setOrderSearchQuery('');
-                            setFormData({ ...formData, orderIdManual: '', customerName: '' });
+                            setFormData({ ...formData, orderIdManual: '' });
                             setShowOrderDropdown(false);
                           }}
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
@@ -871,8 +923,7 @@ export default function ProductionPage() {
                                 onClick={() => {
                                   setFormData({ 
                                     ...formData, 
-                                    orderIdManual: displayId,
-                                    customerName: order.customerName 
+                                    orderIdManual: displayId
                                   });
                                   setOrderSearchQuery(displayId);
                                   setShowOrderDropdown(false);
@@ -895,11 +946,13 @@ export default function ProductionPage() {
                                       </span>
                                     </div>
                                     <p className="text-sm font-semibold text-gray-900 group-hover:text-[#975a20] transition-colors">
-                                      {order.customerName}
+                                      Order #{displayId}
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                      {order.customerPhone}
-                                    </p>
+                                    {order.salesmanName && (
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        Salesman: {order.salesmanName}
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="text-right ml-4">
                                     <p className="text-xs text-gray-500">Delivery</p>
@@ -926,12 +979,12 @@ export default function ProductionPage() {
                                 {formData.orderIdManual}
                               </span>
                             </div>
-                            <p className="text-sm font-semibold text-gray-900">{formData.customerName}</p>
+                            <p className="text-sm font-semibold text-gray-900">Order #{formData.orderIdManual}</p>
                           </div>
                           <button
                             type="button"
                             onClick={() => {
-                              setFormData({ ...formData, orderIdManual: '', customerName: '' });
+                              setFormData({ ...formData, orderIdManual: '' });
                               setOrderSearchQuery('');
                             }}
                             className="p-1.5 hover:bg-white/50 rounded-lg transition-colors"

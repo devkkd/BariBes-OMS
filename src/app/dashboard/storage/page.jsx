@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package, Search, Edit2, X, MapPin, Box as BoxIcon, Store as StoreIcon, CheckCircle, User, Download } from 'lucide-react';
+import { Package, Search, Edit2, X, MapPin, Box as BoxIcon, Store as StoreIcon, CheckCircle, User, Download, Calendar } from 'lucide-react';
 import MobileBackButton from '@/components/MobileBackButton';
 
 export default function StoragePage() {
@@ -188,10 +188,52 @@ export default function StoragePage() {
     }
   };
 
-  const totalPages = Math.ceil(productions.length / itemsPerPage);
+  // Sort productions by date (newest first) and then by billing number (descending)
+  const sortedProductions = [...productions].sort((a, b) => {
+    // First sort by tailoring completion date (newest first)
+    const dateA = new Date(a.tailoringDate || a.createdAt);
+    const dateB = new Date(b.tailoringDate || b.createdAt);
+    
+    if (dateB.getTime() !== dateA.getTime()) {
+      return dateB - dateA; // Newest date first
+    }
+    
+    // Within same date, sort by billing number (descending)
+    const getNumericId = (orderNumber) => {
+      const match = orderNumber.toString().match(/\d+/);
+      return match ? parseInt(match[0]) : 0;
+    };
+    
+    const numA = getNumericId(a.orderNumber);
+    const numB = getNumericId(b.orderNumber);
+    
+    return numB - numA; // Descending order
+  });
+
+  const totalPages = Math.ceil(sortedProductions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedProductions = productions.slice(startIndex, endIndex);
+  const paginatedProductions = sortedProductions.slice(startIndex, endIndex);
+
+  // Group productions by date
+  const groupProductionsByDate = (productions) => {
+    const grouped = {};
+    productions.forEach(production => {
+      const date = new Date(production.tailoringDate || production.createdAt);
+      const dateKey = date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(production);
+    });
+    return grouped;
+  };
+
+  const groupedProductions = groupProductionsByDate(paginatedProductions);
 
   const goToPage = (page) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -258,8 +300,8 @@ export default function StoragePage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Order</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Customer</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Billing Number</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Salesman</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Tailor</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Location</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Storage</th>
@@ -286,7 +328,21 @@ export default function StoragePage() {
                   </td>
                 </tr>
               ) : (
-                paginatedProductions.map((production) => (
+                Object.entries(groupedProductions).map(([date, productions]) => (
+                  <React.Fragment key={`date-group-${date}`}>
+                    {/* Date Header Row */}
+                    <tr key={`date-${date}`} className="bg-gradient-to-r from-[#975a20]/10 to-[#7d4a1a]/10">
+                      <td colSpan="6" className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-[#975a20]" />
+                          <span className="text-sm font-bold text-[#975a20]">{date}</span>
+                          <span className="text-xs text-gray-600">({productions.length} item{productions.length > 1 ? 's' : ''})</span>
+                        </div>
+                      </td>
+                    </tr>
+                    
+                    {/* Productions for this date */}
+                    {productions.map((production) => (
                   <tr key={production._id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -301,7 +357,7 @@ export default function StoragePage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{production.customerName}</span>
+                      <span className="text-sm text-gray-600">{production.salesmanName || '-'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-gray-600">{production.tailorId?.name || '-'}</span>
@@ -348,6 +404,8 @@ export default function StoragePage() {
                       </button>
                     </td>
                   </tr>
+                ))}
+                  </React.Fragment>
                 ))
               )}
             </tbody>
@@ -591,14 +649,12 @@ export default function StoragePage() {
                   Customer Information
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-gray-600">Name</p>
-                    <p className="font-medium text-gray-900">{selectedOrder.customerName || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600">Phone</p>
-                    <p className="font-medium text-gray-900">{selectedOrder.customerPhone || '-'}</p>
-                  </div>
+                  {selectedOrder.salesmanName && (
+                    <div>
+                      <p className="text-xs text-gray-600">Salesman</p>
+                      <p className="font-medium text-gray-900">{selectedOrder.salesmanName}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-gray-600">Salesman</p>
                     <p className="font-medium text-gray-900">{selectedOrder.salesmanName || '-'}</p>

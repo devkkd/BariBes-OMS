@@ -141,7 +141,7 @@ export default function DeliveryPage() {
     if (searchQuery) {
       filteredReady = filteredReady.filter(order =>
         order.displayId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+        (order.salesmanName && order.salesmanName.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
     if (startDate && endDate) {
@@ -157,7 +157,7 @@ export default function DeliveryPage() {
     if (searchQuery) {
       filteredDelivered = filteredDelivered.filter(order =>
         order.displayId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+        (order.salesmanName && order.salesmanName.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
     if (startDate && endDate) {
@@ -319,9 +319,9 @@ export default function DeliveryPage() {
           <p>Order #${order.displayId}</p>
         </div>
         <div class="section">
-          <div class="section-title">Customer Information</div>
-          <div class="info-row"><span class="label">Name:</span><span class="value">${order.customerName}</span></div>
-          <div class="info-row"><span class="label">Phone:</span><span class="value">${order.customerPhone}</span></div>
+          <div class="section-title">Order Information</div>
+          ${order.salesmanName ? `<div class="info-row"><span class="label">Salesman:</span><span class="value">${order.salesmanName}</span></div>` : ''}
+          <div class="info-row"><span class="label">Order Date:</span><span class="value">${new Date(order.orderDate).toLocaleDateString('en-IN')}</span></div>
         </div>
         <div class="section">
           <div class="section-title">Delivery Information</div>
@@ -558,11 +558,12 @@ export default function DeliveryPage() {
                           <p className="text-xs text-gray-500 mb-1">Billing Number</p>
                           <p className="text-sm font-semibold text-gray-900 truncate">{order.displayId}</p>
                         </div>
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">Customer</p>
-                          <p className="text-sm font-medium text-gray-900 truncate">{order.customerName}</p>
-                          <p className="text-xs text-gray-500 truncate">{order.customerPhone}</p>
-                        </div>
+                        {/* <div>
+                          <p className="text-sm font-medium text-gray-900 truncate">{order.displayId}</p>
+                          {order.salesmanName && (
+                            <p className="text-xs text-gray-500 truncate">{order.salesmanName}</p>
+                          )}
+                        </div> */}
                         <div>
                           <p className="text-xs text-gray-500 mb-1">Delivery Date</p>
                           <p className="text-sm text-gray-900">{new Date(order.deliveryDate).toLocaleDateString('en-IN')}</p>
@@ -603,8 +604,7 @@ export default function DeliveryPage() {
                           <p className="text-sm font-semibold text-gray-900 truncate">{order.displayId}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-500 mb-1">Customer</p>
-                          <p className="text-sm font-medium text-gray-900 truncate">{order.customerName}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate">{order.displayId}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 mb-1">Delivered Date</p>
@@ -741,7 +741,9 @@ export default function DeliveryPage() {
 
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-600">Order: <span className="font-semibold text-gray-900">{selectedOrder.displayId}</span></p>
-                <p className="text-sm text-gray-600">Customer: <span className="font-semibold text-gray-900">{selectedOrder.customerName}</span></p>
+                {selectedOrder.salesmanName && (
+                  <p className="text-sm text-gray-600">Salesman: <span className="font-semibold text-gray-900">{selectedOrder.salesmanName}</span></p>
+                )}
                 <p className="text-sm text-gray-600">Amount Due: <span className="font-semibold text-red-600">{formatCurrency(selectedOrder.remainingDue)}</span></p>
               </div>
 

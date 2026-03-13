@@ -77,14 +77,6 @@ const OrderSchema = new mongoose.Schema(
       enum: ['Pending', 'In Production', 'Ready', 'Delivered'],
       default: 'Pending',
     },
-    customerName: {
-      type: String,
-      required: false,
-    },
-    customerPhone: {
-      type: String,
-      required: false,
-    },
     salesmanName: {
       type: String,
       required: false,
