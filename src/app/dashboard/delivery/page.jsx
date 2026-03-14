@@ -558,12 +558,10 @@ export default function DeliveryPage() {
                           <p className="text-xs text-gray-500 mb-1">Billing Number</p>
                           <p className="text-sm font-semibold text-gray-900 truncate">{order.displayId}</p>
                         </div>
-                        {/* <div>
-                          <p className="text-sm font-medium text-gray-900 truncate">{order.displayId}</p>
-                          {order.salesmanName && (
-                            <p className="text-xs text-gray-500 truncate">{order.salesmanName}</p>
-                          )}
-                        </div> */}
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">Qty</p>
+                          <p className="text-sm font-semibold text-gray-900">{order.quantity || 1}</p>
+                        </div>
                         <div>
                           <p className="text-xs text-gray-500 mb-1">Delivery Date</p>
                           <p className="text-sm text-gray-900">{new Date(order.deliveryDate).toLocaleDateString('en-IN')}</p>
@@ -744,6 +742,7 @@ export default function DeliveryPage() {
                 {selectedOrder.salesmanName && (
                   <p className="text-sm text-gray-600">Salesman: <span className="font-semibold text-gray-900">{selectedOrder.salesmanName}</span></p>
                 )}
+                <p className="text-sm text-gray-600">Quantity: <span className="font-semibold text-gray-900">{selectedOrder.quantity || 1}</span></p>
                 <p className="text-sm text-gray-600">Amount Due: <span className="font-semibold text-red-600">{formatCurrency(selectedOrder.remainingDue)}</span></p>
               </div>
 

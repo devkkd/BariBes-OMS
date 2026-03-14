@@ -15,7 +15,6 @@ export async function GET(request) {
       );
     }
 
-    // Only admin and staff can access delivery features
     if (!['admin', 'staff'].includes(currentUser.role)) {
       return NextResponse.json(
         { success: false, error: 'Forbidden. Only admin and staff can access delivery features.' },
@@ -25,13 +24,11 @@ export async function GET(request) {
 
     await connectDB();
     
-    // Query orders with status "Delivered"
     const deliveredOrders = await Order.find({ status: 'Delivered' })
-      .select('orderId subOrderNumber customerName customerPhone totalAmount status deliveryInfo')
-      .sort({ 'deliveryInfo.deliveredDate': -1 }) // Sort by delivered date descending
+      .select('orderId subOrderNumber quantity totalAmount salesmanName status deliveryInfo')
+      .sort({ 'deliveryInfo.deliveredDate': -1 })
       .lean();
 
-    // Calculate stats
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     
@@ -41,14 +38,13 @@ export async function GET(request) {
       return deliveredDate >= startOfDay;
     }).length;
 
-    // Format orders with displayId
     const formattedOrders = deliveredOrders.map(order => ({
       id: order._id.toString(),
       orderId: order.orderId,
       subOrderNumber: order.subOrderNumber,
       displayId: order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
+      quantity: order.quantity || 1,
+      salesmanName: order.salesmanName,
       totalAmount: order.totalAmount,
       status: order.status,
       deliveryInfo: order.deliveryInfo || null,

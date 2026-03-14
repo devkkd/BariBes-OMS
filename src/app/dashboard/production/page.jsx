@@ -953,6 +953,11 @@ export default function ProductionPage() {
                                         Salesman: {order.salesmanName}
                                       </p>
                                     )}
+                                    {order.quantity && order.quantity > 1 && (
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        Qty: {order.quantity}
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="text-right ml-4">
                                     <p className="text-xs text-gray-500">Delivery</p>

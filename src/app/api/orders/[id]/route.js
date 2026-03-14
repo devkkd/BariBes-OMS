@@ -33,9 +33,8 @@ export async function GET(request, { params }) {
         id: order._id.toString(),
         orderId: order.orderId,
         subOrderNumber: order.subOrderNumber,
+        quantity: order.quantity || 1,
         orderDate: order.orderDate,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
         salesmanName: order.salesmanName,
         billingPhoto: order.billingPhoto,
         lehengaPhotos: order.lehengaPhotos,
@@ -131,6 +130,9 @@ export async function PUT(request, { params }) {
     Object.keys(data).forEach(key => {
       order[key] = data[key];
     });
+    
+    // Ensure numeric fields are properly typed
+    if (data.quantity !== undefined) order.quantity = Number(data.quantity) || 1;
 
     await order.save();
 
@@ -140,9 +142,8 @@ export async function PUT(request, { params }) {
         id: order._id.toString(),
         orderId: order.orderId,
         subOrderNumber: order.subOrderNumber,
+        quantity: order.quantity || 1,
         orderDate: order.orderDate,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
         salesmanName: order.salesmanName,
         totalAmount: order.totalAmount,
         firstAdvance: order.firstAdvance,

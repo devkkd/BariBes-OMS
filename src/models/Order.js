@@ -8,7 +8,13 @@ const OrderSchema = new mongoose.Schema(
     },
     subOrderNumber: {
       type: Number,
-      default: null, // null means single order, 1,2,3... means multiple orders
+      default: null,
+    },
+    quantity: {
+      type: Number,
+      required: false,
+      default: 1,
+      min: 1,
     },
     orderDate: {
       type: Date,

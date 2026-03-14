@@ -4,7 +4,7 @@ import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
 
 // GET all orders
-export async function GET() {
+export async function GET(request) {
   try {
     const currentUser = await getCurrentUser();
     
@@ -16,7 +16,21 @@ export async function GET() {
     }
 
     await connectDB();
-    const orders = await Order.find().sort({ createdAt: -1 });
+
+    // Support filtering by orderId + subOrderNumber (for storage/production view modal)
+    const { searchParams } = new URL(request.url);
+    const filterOrderId = searchParams.get('orderId');
+    const filterSubOrder = searchParams.get('subOrderNumber');
+
+    let query = {};
+    if (filterOrderId) {
+      query.orderId = filterOrderId;
+      if (filterSubOrder !== null) {
+        query.subOrderNumber = filterSubOrder === 'null' ? null : parseInt(filterSubOrder);
+      }
+    }
+
+    const orders = await Order.find(query).sort({ createdAt: -1 });
     
     return NextResponse.json({
       success: true,
@@ -24,9 +38,8 @@ export async function GET() {
         id: order._id.toString(),
         orderId: order.orderId,
         subOrderNumber: order.subOrderNumber,
+        quantity: order.quantity || 1,
         orderDate: order.orderDate,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
         salesmanName: order.salesmanName,
         billingPhoto: order.billingPhoto,
         lehengaPhotos: order.lehengaPhotos,
@@ -129,9 +142,8 @@ export async function POST(request) {
         id: newOrder._id.toString(),
         orderId: newOrder.orderId,
         subOrderNumber: newOrder.subOrderNumber,
+        quantity: newOrder.quantity || 1,
         orderDate: newOrder.orderDate,
-        customerName: newOrder.customerName,
-        customerPhone: newOrder.customerPhone,
         salesmanName: newOrder.salesmanName,
         totalAmount: newOrder.totalAmount,
         firstAdvance: newOrder.firstAdvance,

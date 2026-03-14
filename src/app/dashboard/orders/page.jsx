@@ -36,6 +36,7 @@ export default function OrdersPage() {
   const [formData, setFormData] = useState({
     orderId: '',
     salesmanName: '',
+    quantity: 1,
     orderDate: new Date().toISOString().split('T')[0],
     billingPhoto: '',
     lehengaPhotos: [],
@@ -276,6 +277,7 @@ export default function OrdersPage() {
     setFormData({
       orderId: '',
       salesmanName: '',
+      quantity: 1,
       orderDate: new Date().toISOString().split('T')[0],
       billingPhoto: '',
       lehengaPhotos: [],
@@ -296,6 +298,7 @@ export default function OrdersPage() {
     setFormData({
       orderId: order.orderId || '',
       salesmanName: order.salesmanName || '',
+      quantity: order.quantity !== undefined ? Number(order.quantity) : 1,
       orderDate: new Date(order.orderDate).toISOString().split('T')[0],
       billingPhoto: order.billingPhoto,
       lehengaPhotos: order.lehengaPhotos || [],
@@ -408,6 +411,7 @@ export default function OrdersPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...formData,
+            quantity: Number(formData.quantity) || 1,
             totalAmount: Number(formData.totalAmount),
             firstAdvance: {
               amount: Number(formData.firstAdvance.amount),
@@ -435,7 +439,8 @@ export default function OrdersPage() {
         // Set subOrderNumber based on count
         const ordersWithSubNumbers = ordersToCreate.map((order, index) => ({
           ...order,
-          subOrderNumber: ordersToCreate.length > 1 ? index + 1 : null, // null for single order
+          subOrderNumber: ordersToCreate.length > 1 ? index + 1 : null,
+          quantity: Number(order.quantity) || 1,
           totalAmount: Number(order.totalAmount),
           firstAdvance: {
             amount: Number(order.firstAdvance.amount),
@@ -776,6 +781,10 @@ export default function OrdersPage() {
             <div class="info-row">
               <span class="label">Delivery Date:</span>
               <span class="value">${new Date(order.deliveryDate).toLocaleDateString('en-IN')}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Quantity:</span>
+              <span class="value">${order.quantity || 1}</span>
             </div>
             <div class="info-row">
               <span class="label">Status:</span>
@@ -1125,6 +1134,7 @@ export default function OrdersPage() {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Billing Number</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Order Date</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Delivery Date</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Qty</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Production</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
@@ -1136,18 +1146,18 @@ export default function OrdersPage() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={isSelectionMode ? "11" : "10"} className="px-6 py-8 text-center text-gray-500">Loading orders...</td>
+                  <td colSpan={isSelectionMode ? "12" : "11"} className="px-6 py-8 text-center text-gray-500">Loading orders...</td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={isSelectionMode ? "11" : "10"} className="px-6 py-8 text-center text-gray-500">No orders found</td>
+                  <td colSpan={isSelectionMode ? "12" : "11"} className="px-6 py-8 text-center text-gray-500">No orders found</td>
                 </tr>
               ) : (
                 Object.entries(groupedOrders).map(([date, orders]) => (
                   <React.Fragment key={`date-group-${date}`}>
                     {/* Date Header Row */}
                     <tr key={`date-${date}`} className="bg-gradient-to-r from-[#975a20]/10 to-[#7d4a1a]/10">
-                      <td colSpan={isSelectionMode ? "11" : "10"} className="px-6 py-3">
+                      <td colSpan={isSelectionMode ? "12" : "11"} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-[#975a20]" />
                           <span className="text-sm font-bold text-[#975a20]">{date}</span>
@@ -1179,6 +1189,9 @@ export default function OrdersPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {new Date(order.deliveryDate).toLocaleDateString('en-IN')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {order.quantity || 1}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select
@@ -1399,6 +1412,19 @@ export default function OrdersPage() {
                       required
                     />
                   </div>
+                </div>
+
+                {/* Quantity */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
+                  <input
+                    type="number"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                    min="1"
+                    required
+                  />
                 </div>
               </div>
 
@@ -1861,6 +1887,10 @@ export default function OrdersPage() {
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Delivery Date</p>
                       <p className="text-sm font-medium text-gray-900">{new Date(viewingOrder.deliveryDate).toLocaleDateString('en-IN')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Quantity</p>
+                      <p className="text-sm font-medium text-gray-900">{viewingOrder.quantity || 1}</p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Status</p>

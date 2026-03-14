@@ -27,18 +27,17 @@ export async function GET(request) {
     
     // Query orders with status "Ready"
     const readyOrders = await Order.find({ status: 'Ready' })
-      .select('orderId subOrderNumber customerName customerPhone deliveryDate totalAmount remainingDue status')
-      .sort({ deliveryDate: 1 }) // Sort by delivery date ascending
+      .select('orderId subOrderNumber quantity deliveryDate totalAmount remainingDue salesmanName status')
+      .sort({ deliveryDate: 1 })
       .lean();
 
-    // Format orders with displayId
     const formattedOrders = readyOrders.map(order => ({
       id: order._id.toString(),
       orderId: order.orderId,
       subOrderNumber: order.subOrderNumber,
       displayId: order.subOrderNumber ? `${order.orderId}-${order.subOrderNumber}` : order.orderId,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
+      quantity: order.quantity || 1,
+      salesmanName: order.salesmanName,
       deliveryDate: order.deliveryDate,
       totalAmount: order.totalAmount,
       remainingDue: order.remainingDue,

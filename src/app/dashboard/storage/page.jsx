@@ -126,22 +126,18 @@ export default function StoragePage() {
 
   const openOrderModal = async (production) => {
     try {
-      // Fetch order details
       const orderParts = production.orderNumber.split('-');
       const orderId = orderParts[0];
-      const subOrderNumber = orderParts.length > 1 ? parseInt(orderParts[1]) : null;
+      const subOrderNumber = orderParts.length > 1 ? orderParts[1] : null;
       
       const params = new URLSearchParams();
       params.append('orderId', orderId);
-      if (subOrderNumber !== null) {
-        params.append('subOrderNumber', subOrderNumber);
-      }
+      params.append('subOrderNumber', subOrderNumber !== null ? subOrderNumber : 'null');
       
       const res = await fetch(`/api/orders?${params}`);
       const data = await res.json();
       
       if (data.success && data.orders && data.orders.length > 0) {
-        // Attach production details to order
         setSelectedOrder({
           ...data.orders[0],
           production: production
@@ -664,6 +660,10 @@ export default function StoragePage() {
                     <p className="font-medium text-gray-900">
                       {new Date(selectedOrder.orderDate).toLocaleDateString()}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600">Quantity</p>
+                    <p className="font-medium text-gray-900">{selectedOrder.quantity || 1}</p>
                   </div>
                 </div>
               </div>
