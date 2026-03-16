@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
+import Production from '@/models/Production';
 
 // GET single order
 export async function GET(request, { params }) {
@@ -187,6 +188,12 @@ export async function DELETE(request, { params }) {
     }
 
     await Order.findByIdAndDelete(id);
+
+    // Delete all production records linked to this order
+    const orderNumber = order.subOrderNumber
+      ? `${order.orderId}-${order.subOrderNumber}`
+      : order.orderId;
+    await Production.deleteMany({ orderNumber });
 
     return NextResponse.json({
       success: true,

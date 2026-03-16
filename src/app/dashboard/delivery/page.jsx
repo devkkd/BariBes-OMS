@@ -14,7 +14,8 @@ import {
   Download,
   X,
   Loader2,
-  FileText
+  FileText,
+  Plus
 } from 'lucide-react';
 import MobileBackButton from '@/components/MobileBackButton';
 import VideoUpload from '@/components/VideoUpload';
@@ -50,13 +51,14 @@ export default function DeliveryPage() {
   const [error, setError] = useState('');
   const [notification, setNotification] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [staffUsers, setStaffUsers] = useState([]);
   
   const [deliveryForm, setDeliveryForm] = useState({
     deliveredDate: new Date().toISOString().split('T')[0],
     deliveredBy: '',
     remainingPaymentAmount: 0,
-    deliveryPersonName: '',
-    deliveryPersonMobile: '',
+    paymentMethod: '',
+    subPayments: [],
     videoReviewUrl: '',
     deliveryNotes: '',
   });
@@ -67,6 +69,7 @@ export default function DeliveryPage() {
 
   useEffect(() => {
     if (user) {
+      fetchStaffUsers();
       if (activeTab === 'ready') {
         fetchReadyOrders();
       } else {
@@ -92,6 +95,16 @@ export default function DeliveryPage() {
       setUser(data.user);
     } catch (error) {
       router.push('/login');
+    }
+  };
+
+  const fetchStaffUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      const data = await res.json();
+      if (data.success) setStaffUsers(data.users);
+    } catch (error) {
+      console.error('Error fetching staff:', error);
     }
   };
 
@@ -194,8 +207,8 @@ export default function DeliveryPage() {
       deliveredDate: new Date().toISOString().split('T')[0],
       deliveredBy: '',
       remainingPaymentAmount: order.remainingDue,
-      deliveryPersonName: '',
-      deliveryPersonMobile: '',
+      paymentMethod: '',
+      subPayments: [],
       videoReviewUrl: '',
       deliveryNotes: '',
     });
@@ -219,17 +232,24 @@ export default function DeliveryPage() {
     }
     
     if (!deliveryForm.deliveredBy || deliveryForm.deliveredBy.trim().length < 2) {
-      errors.deliveredBy = 'Delivered by is required (minimum 2 characters)';
+      errors.deliveredBy = 'Delivered by is required';
     }
-    
-    if (!deliveryForm.deliveryPersonName || deliveryForm.deliveryPersonName.trim().length < 2) {
-      errors.deliveryPersonName = 'Delivery person name is required (minimum 2 characters)';
+
+    if (!deliveryForm.paymentMethod) {
+      errors.paymentMethod = 'Payment method is required';
     }
-    
-    if (!deliveryForm.deliveryPersonMobile) {
-      errors.deliveryPersonMobile = 'Mobile number is required';
-    } else if (!/^[6-9]\d{9}$/.test(deliveryForm.deliveryPersonMobile)) {
-      errors.deliveryPersonMobile = 'Invalid phone number (10 digits, starting with 6-9)';
+
+    if (deliveryForm.paymentMethod === 'Other') {
+      const subPayments = deliveryForm.subPayments || [];
+      if (subPayments.length === 0) {
+        errors.subPayments = 'Please add at least one split payment';
+      } else {
+        const subTotal = subPayments.reduce((sum, sp) => sum + (Number(sp.amount) || 0), 0);
+        const target = Number(deliveryForm.remainingPaymentAmount);
+        if (Math.abs(subTotal - target) > 0.01) {
+          errors.subPayments = `Split total ₹${subTotal.toLocaleString('en-IN')} must equal ₹${target.toLocaleString('en-IN')}`;
+        }
+      }
     }
     
     setFormErrors(errors);
@@ -252,7 +272,11 @@ export default function DeliveryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: selectedOrder.id,
-          deliveryInfo: deliveryForm,
+          deliveryInfo: {
+            ...deliveryForm,
+            remainingPaymentAmount: Number(deliveryForm.remainingPaymentAmount),
+            subPayments: deliveryForm.paymentMethod === 'Other' ? deliveryForm.subPayments : [],
+          },
         }),
       });
 
@@ -294,63 +318,114 @@ export default function DeliveryPage() {
   };
 
   const generateReceiptHTML = (order) => {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Delivery Receipt - ${order.displayId}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #975a20; padding-bottom: 20px; }
-          .header h1 { color: #975a20; margin: 0; }
-          .section { margin-bottom: 25px; background: #f9f9f9; padding: 20px; border-radius: 8px; }
-          .section-title { font-size: 18px; font-weight: bold; color: #975a20; margin-bottom: 15px; }
-          .info-row { display: flex; justify-content: space-between; margin-bottom: 10px; padding: 8px 0; border-bottom: 1px solid #eee; }
-          .label { font-weight: bold; color: #333; }
-          .value { color: #666; }
-          .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 2px solid #eee; color: #666; }
-          .video-link { display: inline-block; margin-top: 10px; padding: 8px 16px; background: #975a20; color: white; text-decoration: none; border-radius: 6px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>DELIVERY RECEIPT</h1>
-          <p>Order #${order.displayId}</p>
-        </div>
-        <div class="section">
-          <div class="section-title">Order Information</div>
-          ${order.salesmanName ? `<div class="info-row"><span class="label">Salesman:</span><span class="value">${order.salesmanName}</span></div>` : ''}
-          <div class="info-row"><span class="label">Order Date:</span><span class="value">${new Date(order.orderDate).toLocaleDateString('en-IN')}</span></div>
-        </div>
-        <div class="section">
-          <div class="section-title">Delivery Information</div>
-          <div class="info-row"><span class="label">Delivered Date:</span><span class="value">${new Date(order.deliveryInfo.deliveredDate).toLocaleDateString('en-IN')}</span></div>
-          <div class="info-row"><span class="label">Delivered By:</span><span class="value">${order.deliveryInfo.deliveredBy}</span></div>
-          <div class="info-row"><span class="label">Delivery Person:</span><span class="value">${order.deliveryInfo.deliveryPersonName}</span></div>
-          <div class="info-row"><span class="label">Contact:</span><span class="value">${order.deliveryInfo.deliveryPersonMobile}</span></div>
-          ${order.deliveryInfo.deliveryNotes ? `<div class="info-row"><span class="label">Notes:</span><span class="value">${order.deliveryInfo.deliveryNotes}</span></div>` : ''}
-          ${order.deliveryInfo.videoReviewUrl ? `
-            <div class="info-row">
-              <span class="label">Video Review:</span>
-              <span class="value">
-                <a href="${order.deliveryInfo.videoReviewUrl}" target="_blank" class="video-link">Watch Video Review</a>
-              </span>
-            </div>
+    const fmt = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+    const cur = (n) => `&#8377;${Number(n || 0).toLocaleString('en-IN')}`;
+    const prod = order.production;
+
+    const firstSubHTML = (order.firstAdvance?.method === 'Other' && order.firstAdvance?.subPayments?.length > 0)
+      ? order.firstAdvance.subPayments.map(sp => `<tr style="background:#f0fdf4;"><td style="padding:6px 16px 6px 32px;color:#666;font-size:13px;">&#8627; ${sp.paymentMethod}${sp.name ? ` (${sp.name})` : ''}</td><td style="padding:6px 16px;text-align:right;color:#059669;font-size:13px;">${cur(sp.amount)}</td></tr>`).join('')
+      : '';
+
+    const remSubHTML = (order.deliveryInfo?.remainingPaymentMethod === 'Other' && order.deliveryInfo?.remainingPaymentSubPayments?.length > 0)
+      ? order.deliveryInfo.remainingPaymentSubPayments.map(sp => `<tr style="background:#f0fdf4;"><td style="padding:6px 16px 6px 32px;color:#666;font-size:13px;">&#8627; ${sp.paymentMethod}${sp.name ? ` (${sp.name})` : ''}</td><td style="padding:6px 16px;text-align:right;color:#059669;font-size:13px;">${cur(sp.amount)}</td></tr>`).join('')
+      : '';
+
+    const prodHTML = prod ? `
+      <div class="section">
+        <div class="section-title">&#9986; Production Details</div>
+        <table>
+          ${prod.karigarId ? `
+            <tr><td class="lbl">Karigar</td><td>${prod.karigarId.name}</td></tr>
+            <tr><td class="lbl">Karigar Status</td><td style="color:${prod.karigarStatus === 'Completed' ? '#059669' : '#d97706'};">${prod.karigarStatus}</td></tr>
+            ${prod.karigarAssignedDate ? `<tr><td class="lbl">Karigar Assigned</td><td>${fmt(prod.karigarAssignedDate)}</td></tr>` : ''}
+            ${prod.karigarNotes ? `<tr><td class="lbl">Karigar Notes</td><td>${prod.karigarNotes}</td></tr>` : ''}
           ` : ''}
-        </div>
-        <div class="section">
-          <div class="section-title">Payment Details</div>
-          <div class="info-row"><span class="label">Total Amount:</span><span class="value">₹${order.totalAmount.toLocaleString('en-IN')}</span></div>
-          <div class="info-row"><span class="label">Remaining Payment:</span><span class="value">₹${order.deliveryInfo.remainingPaymentAmount.toLocaleString('en-IN')}</span></div>
-        </div>
-        <div class="footer">
-          <p>Thank you for your business!</p>
-          <p style="font-size: 12px;">Generated on ${new Date().toLocaleString('en-IN')}</p>
-        </div>
-      </body>
-      </html>
-    `;
+          ${prod.tailorId ? `
+            <tr><td class="lbl">Tailor</td><td>${prod.tailorId.name}</td></tr>
+            <tr><td class="lbl">Tailor Status</td><td style="color:${prod.tailorStatus === 'Completed' ? '#059669' : '#d97706'};">${prod.tailorStatus}</td></tr>
+            ${prod.tailoringDate ? `<tr><td class="lbl">Tailoring Date</td><td>${fmt(prod.tailoringDate)}</td></tr>` : ''}
+            ${prod.tailorNotes ? `<tr><td class="lbl">Tailor Notes</td><td>${prod.tailorNotes}</td></tr>` : ''}
+          ` : ''}
+          ${prod.location ? `<tr><td class="lbl">Storage</td><td>${prod.location === 'godown' ? 'Godown' : prod.location === 'shop' ? 'Shop' : 'Showroom'}</td></tr>` : ''}
+          ${prod.storeId?.name ? `<tr><td class="lbl">Store</td><td>${prod.storeId.name}</td></tr>` : ''}
+          ${prod.boxId?.name ? `<tr><td class="lbl">Box</td><td>${prod.boxId.name}</td></tr>` : ''}
+        </table>
+      </div>` : '';
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Delivery Receipt - ${order.displayId}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;padding:36px;max-width:820px;margin:0 auto;color:#333;font-size:14px}
+    .header{text-align:center;margin-bottom:28px;border-bottom:3px solid #975a20;padding-bottom:18px}
+    .header h1{color:#975a20;font-size:26px;letter-spacing:2px}
+    .header .sub{font-size:16px;color:#555;margin-top:5px}
+    .header .gen{font-size:12px;color:#999;margin-top:3px}
+    .section{margin-bottom:18px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden}
+    .section-title{font-size:14px;font-weight:bold;color:#fff;background:#975a20;padding:9px 16px}
+    table{width:100%;border-collapse:collapse}
+    td{padding:9px 16px;border-bottom:1px solid #f0f0f0}
+    tr:last-child td{border-bottom:none}
+    .lbl{font-weight:bold;color:#444;width:45%}
+    .amt{text-align:right;font-weight:bold}
+    .green{color:#059669}
+    .orange{color:#d97706}
+    .footer{text-align:center;margin-top:32px;padding-top:16px;border-top:2px solid #eee;color:#999;font-size:12px}
+    @media print{body{padding:16px}}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>DELIVERY RECEIPT</h1>
+    <div class="sub">Order #${order.displayId}</div>
+    <div class="gen">Generated: ${new Date().toLocaleString('en-IN')}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">&#128203; Order Information</div>
+    <table>
+      <tr><td class="lbl">Billing Number</td><td>${order.displayId}</td></tr>
+      ${order.salesmanName ? `<tr><td class="lbl">Salesman</td><td>${order.salesmanName}</td></tr>` : ''}
+      <tr><td class="lbl">Quantity</td><td>${order.quantity || 1}</td></tr>
+      <tr><td class="lbl">Order Date</td><td>${fmt(order.orderDate)}</td></tr>
+      <tr><td class="lbl">Expected Delivery</td><td>${fmt(order.deliveryDate)}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">&#128176; Payment Details</div>
+    <table>
+      <tr><td class="lbl">Total Amount</td><td class="amt">${cur(order.totalAmount)}</td></tr>
+      <tr><td class="lbl">1st Advance (${order.firstAdvance?.method || '-'})</td><td class="amt green">${cur(order.firstAdvance?.amount)}</td></tr>
+      ${firstSubHTML}
+      ${(order.secondAdvance > 0) ? `<tr><td class="lbl">2nd Advance</td><td class="amt green">${cur(order.secondAdvance)}</td></tr>` : ''}
+      <tr style="background:#fff8e1;"><td class="lbl orange">Remaining Due</td><td class="amt orange">${cur(order.remainingDue)}</td></tr>
+    </table>
+  </div>
+
+  ${prodHTML}
+
+  <div class="section">
+    <div class="section-title">&#128666; Delivery Information</div>
+    <table>
+      <tr><td class="lbl">Delivered Date</td><td>${fmt(order.deliveryInfo?.deliveredDate)}</td></tr>
+      <tr><td class="lbl">Delivered By</td><td>${order.deliveryInfo?.deliveredBy || '-'}</td></tr>
+      <tr><td class="lbl">Payment Collected</td><td class="amt green">${cur(order.deliveryInfo?.remainingPaymentAmount)}</td></tr>
+      <tr><td class="lbl">Payment Method</td><td>${order.deliveryInfo?.remainingPaymentMethod || '-'}</td></tr>
+      ${remSubHTML}
+      ${order.deliveryInfo?.deliveryNotes ? `<tr><td class="lbl">Notes</td><td>${order.deliveryInfo.deliveryNotes}</td></tr>` : ''}
+      ${order.deliveryInfo?.videoReviewUrl ? `<tr><td class="lbl">Video Review</td><td><a href="${order.deliveryInfo.videoReviewUrl}" target="_blank" style="color:#975a20;">Watch Video</a></td></tr>` : ''}
+    </table>
+  </div>
+
+  <div class="footer">
+    <p>Thank you for your business!</p>
+  </div>
+</body>
+</html>`;
   };
 
   const formatCurrency = (amount) => {
@@ -627,13 +702,9 @@ export default function DeliveryPage() {
                     </div>
                     {order.deliveryInfo && (
                       <div className="mt-3 pt-3 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 text-xs">
-                        <div className="truncate">
-                          <span className="text-gray-500">Delivery Person: </span>
-                          <span className="text-gray-900 font-medium">{order.deliveryInfo.deliveryPersonName}</span>
-                        </div>
                         <div>
-                          <span className="text-gray-500">Contact: </span>
-                          <span className="text-gray-900 font-medium">{order.deliveryInfo.deliveryPersonMobile}</span>
+                          <span className="text-gray-500">Delivered By: </span>
+                          <span className="text-gray-900 font-medium">{order.deliveryInfo.deliveredBy}</span>
                         </div>
                         <div>
                           <span className="text-gray-500">Payment Collected: </span>
@@ -767,15 +838,18 @@ export default function DeliveryPage() {
                   <label className="block text-sm font-semibold text-gray-900 mb-2">
                     Delivered By <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={deliveryForm.deliveredBy}
                     onChange={(e) => setDeliveryForm({ ...deliveryForm, deliveredBy: e.target.value })}
-                    placeholder="Staff name who handed over"
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900 ${
                       formErrors.deliveredBy ? 'border-red-500' : 'border-gray-300'
                     }`}
-                  />
+                  >
+                    <option value="">Select Staff</option>
+                    {staffUsers.map((staff) => (
+                      <option key={staff.id} value={staff.name}>{staff.name}</option>
+                    ))}
+                  </select>
                   {formErrors.deliveredBy && <p className="text-xs text-red-500 mt-1">{formErrors.deliveredBy}</p>}
                 </div>
 
@@ -783,46 +857,144 @@ export default function DeliveryPage() {
                   <label className="block text-sm font-semibold text-gray-900 mb-2">
                     Remaining Payment <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="number"
-                    value={deliveryForm.remainingPaymentAmount}
-                    onChange={(e) => setDeliveryForm({ ...deliveryForm, remainingPaymentAmount: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                    <input
+                      type="number"
+                      value={deliveryForm.remainingPaymentAmount}
+                      onChange={(e) => setDeliveryForm({ ...deliveryForm, remainingPaymentAmount: e.target.value, subPayments: [] })}
+                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                    />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Delivery Person Name <span className="text-red-500">*</span>
+                    Payment Method <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={deliveryForm.deliveryPersonName}
-                    onChange={(e) => setDeliveryForm({ ...deliveryForm, deliveryPersonName: e.target.value })}
-                    placeholder="Person who delivered"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900 ${
-                      formErrors.deliveryPersonName ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {formErrors.deliveryPersonName && <p className="text-xs text-red-500 mt-1">{formErrors.deliveryPersonName}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-2">
-                    Delivery Person Mobile <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    value={deliveryForm.deliveryPersonMobile}
-                    onChange={(e) => setDeliveryForm({ ...deliveryForm, deliveryPersonMobile: e.target.value })}
-                    placeholder="10 digit mobile number"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900 ${
-                      formErrors.deliveryPersonMobile ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {formErrors.deliveryPersonMobile && <p className="text-xs text-red-500 mt-1">{formErrors.deliveryPersonMobile}</p>}
+                  <select
+                    value={deliveryForm.paymentMethod}
+                    onChange={(e) => setDeliveryForm({ ...deliveryForm, paymentMethod: e.target.value, subPayments: [] })}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900 ${formErrors.paymentMethod ? 'border-red-500' : 'border-gray-300'}`}
+                  >
+                    <option value="">Select Payment Method</option>
+                    <option value="SHUF">SHUF</option>
+                    <option value="VHUF">VHUF</option>
+                    <option value="KHUF">KHUF</option>
+                    <option value="RD">RD</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Other">Other (Split Payment)</option>
+                  </select>
+                  {formErrors.paymentMethod && <p className="text-xs text-red-500 mt-1">{formErrors.paymentMethod}</p>}
                 </div>
               </div>
+
+              {/* Split Payment Section */}
+              {deliveryForm.paymentMethod === 'Other' && Number(deliveryForm.remainingPaymentAmount) > 0 && (
+                <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-black">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-900">
+                      Split ₹{Number(deliveryForm.remainingPaymentAmount).toLocaleString('en-IN')} into parts
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryForm({
+                        ...deliveryForm,
+                        subPayments: [...(deliveryForm.subPayments || []), { paymentMethod: '', name: '', amount: '' }]
+                      })}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-[#975a20] text-white text-xs rounded-lg hover:opacity-90"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add Payment
+                    </button>
+                  </div>
+
+                  {(deliveryForm.subPayments || []).length > 0 && (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {deliveryForm.subPayments.map((sp, index) => (
+                        <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-white rounded-lg border border-gray-200">
+                          <select
+                            value={sp.paymentMethod || ''}
+                            onChange={(e) => {
+                              const updated = [...deliveryForm.subPayments];
+                              updated[index] = { ...updated[index], paymentMethod: e.target.value };
+                              setDeliveryForm({ ...deliveryForm, subPayments: updated });
+                            }}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none text-gray-900"
+                          >
+                            <option value="">Payment Method</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Online">Online</option>
+                          </select>
+                          <input
+                            type="text"
+                            placeholder="Person Name"
+                            value={sp.name || ''}
+                            onChange={(e) => {
+                              const updated = [...deliveryForm.subPayments];
+                              updated[index] = { ...updated[index], name: e.target.value };
+                              setDeliveryForm({ ...deliveryForm, subPayments: updated });
+                            }}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none"
+                          />
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
+                              <input
+                                type="number"
+                                placeholder="Amount"
+                                value={sp.amount || ''}
+                                onChange={(e) => {
+                                  const updated = [...deliveryForm.subPayments];
+                                  updated[index] = { ...updated[index], amount: e.target.value };
+                                  setDeliveryForm({ ...deliveryForm, subPayments: updated });
+                                }}
+                                className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#975a20] outline-none"
+                                min="0"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = deliveryForm.subPayments.filter((_, i) => i !== index);
+                                setDeliveryForm({ ...deliveryForm, subPayments: updated });
+                              }}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(deliveryForm.subPayments || []).length > 0 && (() => {
+                    const subTotal = deliveryForm.subPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                    const target = Number(deliveryForm.remainingPaymentAmount);
+                    const isMatching = Math.abs(subTotal - target) < 0.01;
+                    const diff = target - subTotal;
+                    return (
+                      <div className={`p-3 rounded-lg border-2 ${isMatching ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-semibold text-gray-700">Sub-payments Total:</span>
+                          <span className={`text-lg font-bold ${isMatching ? 'text-green-700' : 'text-red-700'}`}>₹{subTotal.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-sm font-semibold text-gray-700">Target:</span>
+                          <span className="text-lg font-bold text-gray-900">₹{target.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="pt-2 border-t mt-2">
+                          <p className={`text-sm font-bold flex items-center gap-2 ${isMatching ? 'text-green-700' : 'text-red-700'}`}>
+                            {isMatching ? '✓ Amounts match perfectly!' : diff > 0 ? `⚠️ Need ₹${diff.toLocaleString('en-IN')} more` : `⚠️ Exceeded by ₹${Math.abs(diff).toLocaleString('en-IN')}`}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {formErrors.subPayments && <p className="text-xs text-red-500">{formErrors.subPayments}</p>}
+                </div>
+              )}
 
               <div>
                 <VideoUpload

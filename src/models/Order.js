@@ -114,6 +114,14 @@ const OrderSchema = new mongoose.Schema(
         type: String,
         default: null,
       },
+      remainingPaymentMethod: {
+        type: String,
+        default: null,
+      },
+      remainingPaymentSubPayments: {
+        type: Array,
+        default: [],
+      },
       deliveryNotes: {
         type: String,
         default: '',

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package, Search, Edit2, X, MapPin, Box as BoxIcon, Store as StoreIcon, CheckCircle, User, Download, Calendar } from 'lucide-react';
+import { Package, Search, Edit2, X, MapPin, Box as BoxIcon, Store as StoreIcon, CheckCircle, User, Download, Calendar, Trash2 } from 'lucide-react';
 import MobileBackButton from '@/components/MobileBackButton';
 
 export default function StoragePage() {
@@ -155,6 +155,25 @@ export default function StoragePage() {
   const closeOrderModal = () => {
     setShowOrderModal(false);
     setSelectedOrder(null);
+  };
+
+  const handleRemoveStorage = async (production) => {
+    if (!confirm(`Remove storage for order ${production.orderNumber}?`)) return;
+    try {
+      const res = await fetch(`/api/production/${production._id}/remove-storage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchReadyProductions();
+      } else {
+        alert(data.error || 'Failed to remove storage');
+      }
+    } catch (error) {
+      console.error('Error removing storage:', error);
+      alert('Failed to remove storage');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -375,10 +394,10 @@ export default function StoragePage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-600">
-                        {production.storeId?.name ? (
+                        {production.location ? (
                           <div className="flex items-center gap-1">
-                            <StoreIcon className="w-4 h-4" />
-                            {production.storeId.name}
+                            <MapPin className="w-4 h-4" />
+                            {production.location === 'godown' ? 'Godown' : production.location === 'shop' ? 'Shop' : 'Showroom'}
                           </div>
                         ) : '-'}
                         {production.boxId?.name && (
@@ -390,14 +409,25 @@ export default function StoragePage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => openStorageModal(production)}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#975a20] to-[#7d4a1a] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
-                        title="Assign Storage"
-                      >
-                        <MapPin className="w-4 h-4" />
-                        {production.location ? 'Update' : 'Assign'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openStorageModal(production)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#975a20] to-[#7d4a1a] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                          title="Assign Storage"
+                        >
+                          <MapPin className="w-4 h-4" />
+                          {production.location ? 'Update' : 'Assign'}
+                        </button>
+                        {production.location && (
+                          <button
+                            onClick={() => handleRemoveStorage(production)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remove Storage Assignment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

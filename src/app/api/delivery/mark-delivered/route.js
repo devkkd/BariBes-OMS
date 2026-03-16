@@ -58,20 +58,6 @@ export async function POST(request) {
         errors.remainingPaymentAmount = 'Remaining payment amount cannot be negative';
       }
 
-      if (!deliveryInfo.deliveryPersonName || deliveryInfo.deliveryPersonName.trim().length < 2) {
-        errors.deliveryPersonName = 'Delivery person name is required (minimum 2 characters)';
-      }
-
-      if (!deliveryInfo.deliveryPersonMobile) {
-        errors.deliveryPersonMobile = 'Delivery person mobile number is required';
-      } else {
-        // Validate Indian phone number format
-        const phoneRegex = /^[6-9]\d{9}$/;
-        if (!phoneRegex.test(deliveryInfo.deliveryPersonMobile)) {
-          errors.deliveryPersonMobile = 'Invalid phone number format. Must be 10 digits starting with 6-9';
-        }
-      }
-
       // Validate optional fields
       if (deliveryInfo.videoReviewUrl && deliveryInfo.videoReviewUrl.trim()) {
         try {
@@ -119,8 +105,8 @@ export async function POST(request) {
       deliveredDate: new Date(deliveryInfo.deliveredDate),
       deliveredBy: deliveryInfo.deliveredBy.trim(),
       remainingPaymentAmount: Number(deliveryInfo.remainingPaymentAmount),
-      deliveryPersonName: deliveryInfo.deliveryPersonName.trim(),
-      deliveryPersonMobile: deliveryInfo.deliveryPersonMobile.trim(),
+      remainingPaymentMethod: deliveryInfo.paymentMethod || null,
+      remainingPaymentSubPayments: deliveryInfo.paymentMethod === 'Other' ? (deliveryInfo.subPayments || []) : [],
       videoReviewUrl: deliveryInfo.videoReviewUrl?.trim() || null,
       deliveryNotes: deliveryInfo.deliveryNotes?.trim() || '',
       markedDeliveredBy: currentUser.id,
